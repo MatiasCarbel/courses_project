@@ -1,0 +1,35 @@
+version: "3.8"
+services:
+  # Users API Service
+  users-api:
+    build: ./users-api # Path to your Dockerfile for users-api
+    ports:
+      - "8001:8001" # Expose users-api on port 8001
+    environment:
+      - DB_HOST=mysql # MySQL service name
+      - DB_PORT=3306
+      - DB_USER=root # MySQL root user
+      - DB_PASSWORD=yourpassword # MySQL root password
+      - DB_NAME=usersdb # Name of the MySQL database
+    depends_on:
+      - mysql # Ensure MySQL starts before users-api
+
+  # MySQL Service
+  mysql:
+    image: mysql:latest # MySQL Docker image
+    environment:
+      MYSQL_ROOT_PASSWORD: yourpassword # MySQL root password
+      MYSQL_DATABASE: usersdb # Name of the database
+    ports:
+      - "3306:3306" # Expose MySQL on port 3306
+    volumes:
+      - mysql-data:/var/lib/mysql # Persist MySQL data
+      - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql:ro # Mount init.sql for table creation (read-only)
+
+  memcached:
+    image: memcached:latest
+    ports:
+      - "11211:11211"
+
+volumes:
+  mysql-data:
