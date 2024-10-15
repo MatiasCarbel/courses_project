@@ -29,7 +29,7 @@ type User struct {
     ID       int    `json:"id"`
     Username string `json:"username"`
     Email    string `json:"email"`
-    Password string `json:"password"`
+    Password string `json:"-"`
 }
 
 // Función auxiliar para generar JWT
@@ -66,53 +66,76 @@ func verifyJWT(r *http.Request) (int, error) {
     return 0, err
 }
 
-// CreateUser - Crear un nuevo usuario
+// CreateUser - Crear un nuevo usuario y devolverlo sin la contraseña
 func CreateUser(db *sql.DB, w http.ResponseWriter, r *http.Request) {
-    var user User
-    _ = json.NewDecoder(r.Body).Decode(&user)
+	var user User
+	_ = json.NewDecoder(r.Body).Decode(&user)
 
-    hashedPassword, err := bcrypt.GenerateFromPassword([]byte(user.Password), bcrypt.DefaultCost)
-    if err != nil {
-        log.Printf("Error al hashear la contraseña: %v", err)
-        jsonResponse(w, http.StatusInternalServerError, "Error al crear el usuario", "")
-        return
-    }
-    user.Password = string(hashedPassword)
+	// Hashear la contraseña
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(user.Password), bcrypt.DefaultCost)
+	if err != nil {
+			log.Printf("Error al hashear la contraseña: %v", err)
+			jsonResponse(w, http.StatusInternalServerError, "Error al crear el usuario", "")
+			return
+	}
+	user.Password = string(hashedPassword)
 
-    query := "INSERT INTO users (username, email, password_hash) VALUES (?, ?, ?)"
-    _, err = db.Exec(query, user.Username, user.Email, user.Password)
-    if err != nil {
-        log.Printf("Error al crear el usuario: %v", err)
-        jsonResponse(w, http.StatusConflict, "El nombre de usuario o correo electrónico ya existe", "")
-        return
-    }
-    jsonResponse(w, http.StatusOK, "Usuario creado exitosamente", "")
+	// Insertar el usuario en la base de datos
+	query := "INSERT INTO users (username, email, password_hash) VALUES (?, ?, ?)"
+	result, err := db.Exec(query, user.Username, user.Email, user.Password)
+	if err != nil {
+			log.Printf("Error al crear el usuario: %v", err)
+			jsonResponse(w, http.StatusConflict, "El nombre de usuario o correo electrónico ya existe", "")
+			return
+	}
+
+	// Obtener el ID del usuario recién creado
+	userID, err := result.LastInsertId()
+	if err != nil {
+			log.Printf("Error al obtener el ID del nuevo usuario: %v", err)
+			jsonResponse(w, http.StatusInternalServerError, "Error al crear el usuario", "")
+			return
+	}
+
+	// Devolver los datos del usuario recién creado (sin la contraseña)
+	createdUser := User{
+			ID:       int(userID),
+			Username: user.Username,
+			Email:    user.Email,
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(createdUser)
 }
 
-// GetUser - Obtener un usuario por ID
+// GetUser - Obtener un usuario por ID, sin devolver la contraseña
 func GetUser(db *sql.DB, w http.ResponseWriter, r *http.Request) {
-    vars := mux.Vars(r)
-    userID, _ := strconv.Atoi(vars["id"])
+	vars := mux.Vars(r)
+	userID, _ := strconv.Atoi(vars["id"])
 
-    cacheKey := "user_" + strconv.Itoa(userID)
-    cachedUser, err := mc.Get(cacheKey)
-    var user User
+	cacheKey := "user_" + strconv.Itoa(userID)
+	cachedUser, err := mc.Get(cacheKey)
+	var user User
 
-    if err == nil {
-        _ = json.Unmarshal(cachedUser.Value, &user)
-        log.Println("Cache hit")
-    } else {
-        log.Println("Cache miss")
-        query := "SELECT id, username, email FROM users WHERE id = ?"
-        err := db.QueryRow(query, userID).Scan(&user.ID, &user.Username, &user.Email)
-        if err != nil {
-            jsonResponse(w, http.StatusNotFound, "Usuario no encontrado", "")
-            return
-        }
-        userData, _ := json.Marshal(user)
-        mc.Set(&memcache.Item{Key: cacheKey, Value: userData, Expiration: int32(300)})
-    }
-    json.NewEncoder(w).Encode(user)
+	if err == nil {
+			_ = json.Unmarshal(cachedUser.Value, &user)
+			log.Println("Cache hit")
+	} else {
+			log.Println("Cache miss")
+			query := "SELECT id, username, email FROM users WHERE id = ?"
+			err := db.QueryRow(query, userID).Scan(&user.ID, &user.Username, &user.Email)
+			if err != nil {
+					jsonResponse(w, http.StatusNotFound, "Usuario no encontrado", "")
+					return
+			}
+			userData, _ := json.Marshal(user)
+			mc.Set(&memcache.Item{Key: cacheKey, Value: userData, Expiration: int32(300)})
+	}
+
+	// Devolver solo ID, username y email, sin la contraseña
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(user)
 }
 
 // UpdateUser - Actualizar un usuario (autenticado)
@@ -141,27 +164,40 @@ func UpdateUser(db *sql.DB, w http.ResponseWriter, r *http.Request) {
     jsonResponse(w, http.StatusOK, "Usuario actualizado exitosamente", "")
 }
 
-// DeleteUser - Eliminar un usuario (autenticado)
+// DeleteUser - Eliminar un usuario solo si es el mismo que está autenticado y existe
 func DeleteUser(db *sql.DB, w http.ResponseWriter, r *http.Request) {
-    vars := mux.Vars(r)
-    userIDParam, _ := strconv.Atoi(vars["id"])
+	vars := mux.Vars(r)
+	userIDParam, _ := strconv.Atoi(vars["id"])
 
-    userIDToken, err := verifyJWT(r)
-    if err != nil || userIDToken != userIDParam {
-        jsonResponse(w, http.StatusUnauthorized, "No autorizado para eliminar este usuario", "")
-        return
-    }
+	// Verificar el JWT y obtener el userID del token
+	userIDToken, err := verifyJWT(r)
+	if err != nil || userIDToken != userIDParam {
+			jsonResponse(w, http.StatusUnauthorized, "No autorizado para eliminar este usuario", "")
+			return
+	}
 
-    query := "DELETE FROM users WHERE id = ?"
-    _, err = db.Exec(query, userIDToken)
-    if err != nil {
-        log.Printf("Error eliminando usuario: %v", err)
-        jsonResponse(w, http.StatusInternalServerError, "Error al eliminar el usuario", "")
-        return
-    }
+	// Verificar si el usuario existe antes de eliminarlo
+	var exists bool
+	checkQuery := "SELECT EXISTS(SELECT 1 FROM users WHERE id = ?)"
+	err = db.QueryRow(checkQuery, userIDToken).Scan(&exists)
+	if err != nil || !exists {
+			jsonResponse(w, http.StatusNotFound, "Usuario no encontrado o ya eliminado", "")
+			return
+	}
 
-    mc.Delete("user_" + strconv.Itoa(userIDToken)) // Invalidate cache
-    jsonResponse(w, http.StatusOK, "Usuario eliminado exitosamente", "")
+	// Proceder con la eliminación si el usuario existe
+	query := "DELETE FROM users WHERE id = ?"
+	_, err = db.Exec(query, userIDToken)
+	if err != nil {
+			log.Printf("Error eliminando usuario: %v", err)
+			jsonResponse(w, http.StatusInternalServerError, "Error al eliminar el usuario", "")
+			return
+	}
+
+	// Invalidate cache
+	mc.Delete("user_" + strconv.Itoa(userIDToken))
+
+	jsonResponse(w, http.StatusOK, "Usuario eliminado exitosamente", "")
 }
 
 // LoginUser - Login de usuario y generación de JWT
