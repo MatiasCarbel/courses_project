@@ -1,27 +1,17 @@
-# Etapa 1: Construcción del binario
-FROM golang:1.20-alpine AS builder
+# Usamos una imagen base de Go
+FROM golang:1.18-alpine
 
 WORKDIR /app
 
-# Copiamos los archivos de Go y descargamos las dependencias
+# Copiar los archivos del proyecto
 COPY go.mod ./
 COPY go.sum ./
 RUN go mod download
 
-# Copiamos el código fuente y construimos la aplicación
-COPY . ./
-RUN go build -o /courses-api ./main.go
+COPY . .
 
-# Etapa 2: Imagen ligera para la producción
-FROM alpine:latest
+# Compilar el binario
+RUN go build -o /courses-api
 
-WORKDIR /root/
-
-# Copiamos el binario de la etapa de construcción
-COPY --from=builder /courses-api .
-
-# Exponemos el puerto en el que correrá el servicio
-EXPOSE 8000
-
-# Ejecutamos el binario
-CMD ["./courses-api"]
+# Definir el comando de ejecución
+CMD ["/courses-api"]

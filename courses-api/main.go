@@ -1,59 +1,60 @@
 package main
 
 import (
-	"database/sql"
-	"fmt"
+	"context"
 	"log"
 	"net/http"
-	"os"
 
 	"courses-api/handlers"
+	"courses-api/middlewares"
 
 	"github.com/gorilla/mux"
-	_ "github.com/lib/pq"
+	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
 func main() {
-    // Datos de conexión obtenidos de variables de entorno
-    dbHost := os.Getenv("DB_HOST")
-    dbPort := os.Getenv("DB_PORT")
-    dbUser := os.Getenv("DB_USER")
-    dbPassword := os.Getenv("DB_PASSWORD")
-    dbName := os.Getenv("DB_NAME")
+	clientOptions := options.Client().ApplyURI("mongodb://mongo:27017")
+	client, err := mongo.Connect(context.TODO(), clientOptions)
+	if err != nil {
+		log.Fatalf("Error al conectar a MongoDB: %v", err)
+	}
+	defer client.Disconnect(context.TODO())
 
-    connStr := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=disable",
-        dbHost, dbPort, dbUser, dbPassword, dbName)
+	// Crear el router
+	r := mux.NewRouter()
 
-    db, err := sql.Open("postgres", connStr)
-    if err != nil {
-        log.Fatalf("Error abriendo la base de datos: %v", err)
-    }
-    defer db.Close()
+	// Rutas públicas
+	r.HandleFunc("/courses", func(w http.ResponseWriter, r *http.Request) {
+		handlers.GetAllCourses(client, w, r)
+	}).Methods("GET")
 
-    // Verificamos la conexión
-    err = db.Ping()
-    if err != nil {
-        log.Fatalf("Error conectándose a la base de datos: %v", err)
-    }
+	r.HandleFunc("/courses/{id}", func(w http.ResponseWriter, r *http.Request) {
+		handlers.GetCourse(client, w, r)
+	}).Methods("GET")
 
-    log.Println("Conexión exitosa a PostgreSQL")
+	// Rutas protegidas por permisos de administrador
+	r.HandleFunc("/courses", middlewares.VerifyAdmin(func(w http.ResponseWriter, r *http.Request) {
+		handlers.CreateCourse(client, w, r)
+	})).Methods("POST")
 
-    // Iniciamos el router para los endpoints
-    r := mux.NewRouter()
+	r.HandleFunc("/courses/{id}", middlewares.VerifyAdmin(func(w http.ResponseWriter, r *http.Request) {
+		handlers.UpdateCourse(client, w, r)
+	})).Methods("PUT")
 
-    // Definir rutas para el microservicio
-    r.HandleFunc("/courses", handlers.GetCourses).Methods("GET")
-    r.HandleFunc("/courses/{id}", handlers.GetCourseByID).Methods("GET")
-    r.HandleFunc("/courses", handlers.CreateCourse).Methods("POST")
-    r.HandleFunc("/courses/{id}", handlers.UpdateCourse).Methods("PUT")
-    r.HandleFunc("/courses/{id}", handlers.DeleteCourse).Methods("DELETE")
+	r.HandleFunc("/courses/{id}", middlewares.VerifyAdmin(func(w http.ResponseWriter, r *http.Request) {
+		handlers.DeleteCourse(client, w, r)
+	})).Methods("DELETE")
 
-    // Puerto en el que correrá el servicio
-    port := os.Getenv("PORT")
-    if port == "" {
-        port = "8000"
-    }
+	r.HandleFunc("/enrollments", func(w http.ResponseWriter, r *http.Request) {
+		handlers.CreateEnrollment(client, w, r)
+	}).Methods("POST")
 
-    log.Printf("Iniciando server en el puerto %s", port)
-    log.Fatal(http.ListenAndServe(":"+port, r))
+	r.HandleFunc("/courses/availability", func(w http.ResponseWriter, r *http.Request) {
+		handlers.CalculateAvailability(client, w, r)
+	}).Methods("POST")
+
+	// Iniciar el servidor
+	log.Println("Servidor iniciado en el puerto 8002")
+	log.Fatal(http.ListenAndServe(":8002", r))
 }
