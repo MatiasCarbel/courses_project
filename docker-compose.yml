@@ -50,6 +50,15 @@ services:
     volumes:
       - mongo-data:/data/db
 
+  # Solr Service
+  solr:
+    image: solr:latest
+    ports:
+      - "8983:8983" # Expose Solr on port 8983
+    volumes:
+      - solr-data:/var/solr
+
 volumes:
   mysql-data:
   mongo-data:
+  solr-data:

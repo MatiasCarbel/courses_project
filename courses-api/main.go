@@ -54,6 +54,10 @@ func main() {
 		handlers.CalculateAvailability(client, w, r)
 	}).Methods("POST")
 
+	r.HandleFunc("/enrollments/check/{course_id}", func(w http.ResponseWriter, r *http.Request) {
+		handlers.CheckEnrollment(client, w, r)
+	}).Methods("GET")
+
 	// Iniciar el servidor
 	log.Println("Servidor iniciado en el puerto 8002")
 	log.Fatal(http.ListenAndServe(":8002", r))
