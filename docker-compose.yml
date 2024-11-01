@@ -58,6 +58,21 @@ services:
     volumes:
       - solr-data:/var/solr
 
+  # RabbitMQ Service
+  rabbitmq:
+    image: rabbitmq:3-management
+    ports:
+      - "5672:5672" # RabbitMQ default port
+      - "15672:15672" # RabbitMQ management plugin
+
+  # Search API Service
+  search-api:
+    build: ./search-api # Path to your Dockerfile for search-api
+    ports:
+      - "8003:8003" # Expose search-api on port 8003
+    depends_on:
+      - rabbitmq # Ensure RabbitMQ starts before search-api
+
 volumes:
   mysql-data:
   mongo-data:

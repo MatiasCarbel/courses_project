@@ -10,9 +10,10 @@ import (
 	"sync"
 	"time"
 
+	"github.com/streadway/amqp"
+
 	"github.com/golang-jwt/jwt/v4"
 	"github.com/gorilla/mux"
-	"github.com/streadway/amqp"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -29,12 +30,12 @@ type Claims struct {
 
 // Course representa la estructura de un curso
 type Course struct {
-	ID          primitive.ObjectID `bson:"_id,omitempty" json:"id,omitempty"`
-	Title       string             `bson:"title" json:"title"`
-	Description string             `bson:"description" json:"description"`
-	Instructor  string             `bson:"instructor" json:"instructor"`
-	Duration    int                `bson:"duration" json:"duration"`
-	AvailableSeats int               `bson:"available_seats" json:"available_seats"`
+	ID             primitive.ObjectID `bson:"_id,omitempty" json:"id,omitempty"`
+	Title          string            `bson:"title" json:"title"`
+	Description    string            `bson:"description" json:"description"`
+	Instructor     string            `bson:"instructor" json:"instructor"`
+	Duration       int               `bson:"duration" json:"duration"`
+	AvailableSeats int              `bson:"available_seats" json:"available_seats"`
 }
 
 // Enrollment representa la estructura de una inscripción
@@ -143,7 +144,7 @@ func UpdateCourse(client *mongo.Client, w http.ResponseWriter, r *http.Request) 
 	var course Course
 	_ = json.NewDecoder(r.Body).Decode(&course)
 
-	if course.Title == "" || course.Description == "" || course.Instructor == "" || course.Duration <= 0 {
+	if course.Title == "" || course.Description == "" || course.Instructor == "" || course.Duration <= 0 || course.AvailableSeats <= 0 {
 		jsonResponse(w, http.StatusBadRequest, map[string]string{"error": "Todos los campos son obligatorios y la duración debe ser mayor a 0"})
 		return
 	}
@@ -161,7 +162,7 @@ func UpdateCourse(client *mongo.Client, w http.ResponseWriter, r *http.Request) 
 
 	jsonResponse(w, http.StatusOK, course)
 
-	// Publish the course to RabbitMQ
+	// Publish the updated course to RabbitMQ
 	publishToRabbitMQ(course)
 }
 
@@ -295,8 +296,51 @@ func CreateEnrollment(client *mongo.Client, w http.ResponseWriter, r *http.Reque
 		return
 	}
 
+	// Publish the enrollment update to RabbitMQ
+	publishEnrollmentUpdateToRabbitMQ(enrollment.CourseID, -1)
+
 	enrollment.ID = result.InsertedID.(primitive.ObjectID)
 	jsonResponse(w, http.StatusCreated, enrollment)
+}
+
+func publishEnrollmentUpdateToRabbitMQ(courseID primitive.ObjectID, seatChange int) {
+	conn, err := amqp.Dial("amqp://guest:guest@rabbitmq:5672/")
+	if err != nil {
+		log.Printf("Failed to connect to RabbitMQ: %v", err)
+		return
+	}
+	defer conn.Close()
+
+	ch, err := conn.Channel()
+	if err != nil {
+		log.Printf("Failed to open a channel: %v", err)
+		return
+	}
+	defer ch.Close()
+
+	update := map[string]interface{}{
+		"course_id":  courseID.Hex(),
+		"seat_change": seatChange,
+	}
+
+	body, err := json.Marshal(update)
+	if err != nil {
+		log.Printf("Failed to marshal update: %v", err)
+		return
+	}
+
+	err = ch.Publish(
+		"",                // exchange
+		"course_updates",  // routing key
+		false,             // mandatory
+		false,             // immediate
+		amqp.Publishing{
+			ContentType: "application/json",
+			Body:        body,
+		})
+	if err != nil {
+		log.Printf("Failed to publish a message: %v", err)
+	}
 }
 
 func CalculateAvailability(client *mongo.Client, w http.ResponseWriter, r *http.Request) {
@@ -367,23 +411,36 @@ func CheckEnrollment(client *mongo.Client, w http.ResponseWriter, r *http.Reques
 func publishToRabbitMQ(course Course) {
 	conn, err := amqp.Dial("amqp://guest:guest@rabbitmq:5672/")
 	if err != nil {
-		log.Fatalf("Failed to connect to RabbitMQ: %v", err)
+		log.Printf("Failed to connect to RabbitMQ: %v", err)
+		return
 	}
 	defer conn.Close()
 
 	ch, err := conn.Channel()
 	if err != nil {
-		log.Fatalf("Failed to open a channel: %v", err)
+		log.Printf("Failed to open a channel: %v", err)
+		return
 	}
 	defer ch.Close()
 
-	body, err := json.Marshal(course)
+	// Convert the course data to match the search API format
+	courseData := map[string]interface{}{
+		"id":              course.ID.Hex(),
+		"title":           course.Title,
+		"description":     course.Description,
+		"instructor":      course.Instructor,
+		"duration":        course.Duration,
+		"available_seats": course.AvailableSeats,
+	}
+
+	body, err := json.Marshal(courseData)
 	if err != nil {
-		log.Fatalf("Failed to marshal course: %v", err)
+		log.Printf("Failed to marshal course: %v", err)
+		return
 	}
 
 	err = ch.Publish(
-		"",              // exchange
+		"",               // exchange
 		"course_updates", // routing key
 		false,           // mandatory
 		false,           // immediate
@@ -392,6 +449,6 @@ func publishToRabbitMQ(course Course) {
 			Body:        body,
 		})
 	if err != nil {
-		log.Fatalf("Failed to publish a message: %v", err)
+		log.Printf("Failed to publish a message: %v", err)
 	}
 }
