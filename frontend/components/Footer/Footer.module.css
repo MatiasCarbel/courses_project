@@ -1,0 +1,16 @@
+.title {
+  background: rgb(159,51,233);
+  background: linear-gradient(90deg, rgba(159,51,233,1) 40%, rgb(255, 255, 255) 40%, rgba(255,255,255,1) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.titleContainer {
+  position: relative;
+}
+
+.triangulito {
+  position: absolute;
+  top: -4px;
+  left: 1px;
+}

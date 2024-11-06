@@ -1,0 +1,10 @@
+.button {
+  padding: 8px 16px;
+  border: solid 1px #232323;
+  font-size: 14px;
+}
+
+.secondary {
+  background-color: #232323;
+  color: white;
+}

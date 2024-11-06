@@ -73,6 +73,22 @@ services:
     depends_on:
       - rabbitmq # Ensure RabbitMQ starts before search-api
 
+  # Frontend Service
+  frontend:
+    build: ./frontend
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_BASE_API_URL=http://localhost:8001
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+      - /app/.next
+    depends_on:
+      - users-api
+      - courses-api
+      - search-api
+
 volumes:
   mysql-data:
   mongo-data:

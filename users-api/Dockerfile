@@ -4,8 +4,7 @@ FROM golang:1.20-alpine AS builder
 WORKDIR /app
 
 # Copiamos los archivos de Go y descargamos las dependencias
-COPY go.mod ./
-COPY go.sum ./
+COPY go.mod go.sum ./
 RUN go mod download
 
 # Copiamos el código fuente y construimos la aplicación
