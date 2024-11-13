@@ -39,24 +39,48 @@ services:
       - "8002:8002" # Expose courses-api on port 8002
     environment:
       - MONGO_URI=mongodb://mongo:27017/coursesdb # MongoDB connection URI
+      - RABBITMQ_URI=amqp://guest:guest@rabbitmq:5672/
     depends_on:
-      - mongo # Ensure MongoDB starts before courses-api
+      mongo:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_started
+    networks:
+      - app-network
 
   # MongoDB Service
   mongo:
     image: mongo:latest
     ports:
-      - "27017:27017" # Asegura que MongoDB esté expuesto en localhost:27017
+      - "27017:27017"
     volumes:
       - mongo-data:/data/db
+    networks:
+      - app-network
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   # Solr Service
   solr:
     image: solr:latest
     ports:
-      - "8983:8983" # Expose Solr on port 8983
+      - "8983:8983"
     volumes:
-      - solr-data:/var/solr
+      - ./solr/config:/opt/solr/server/solr/configsets/courses/conf
+    command:
+      - solr-precreate
+      - courses
+      - /opt/solr/server/solr/configsets/courses
+    networks:
+      - app-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8983/solr/"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   # RabbitMQ Service
   rabbitmq:
@@ -64,14 +88,24 @@ services:
     ports:
       - "5672:5672" # RabbitMQ default port
       - "15672:15672" # RabbitMQ management plugin
+    networks:
+      - app-network
 
   # Search API Service
   search-api:
-    build: ./search-api # Path to your Dockerfile for search-api
+    build: ./search-api
     ports:
-      - "8003:8003" # Expose search-api on port 8003
+      - "8003:8003"
     depends_on:
-      - rabbitmq # Ensure RabbitMQ starts before search-api
+      solr:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_started
+    environment:
+      - SOLR_URL=http://solr:8983
+      - RABBITMQ_URI=amqp://guest:guest@rabbitmq:5672/
+    networks:
+      - app-network
 
   # Frontend Service
   frontend:
@@ -79,17 +113,22 @@ services:
     ports:
       - "3000:3000"
     environment:
-      - NEXT_PUBLIC_BASE_API_URL=http://localhost:8001
-    volumes:
-      - ./frontend:/app
-      - /app/node_modules
-      - /app/.next
+      - NEXT_PUBLIC_SEARCH_API_URL=http://search-api:8003
+      - NEXT_PUBLIC_COURSES_API_URL=http://courses-api:8002
+      - NEXT_PUBLIC_USERS_API_URL=http://users-api:8001
+      - NEXT_PUBLIC_BASE_API_URL=http://search-api:8003
+    networks:
+      - app-network
     depends_on:
-      - users-api
-      - courses-api
       - search-api
+      - courses-api
+      - users-api
 
 volumes:
   mysql-data:
   mongo-data:
   solr-data:
+
+networks:
+  app-network:
+    driver: bridge

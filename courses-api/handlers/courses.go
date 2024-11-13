@@ -6,11 +6,12 @@ import (
 	"errors"
 	"log"
 	"net/http"
+	"os"
 	"strings"
 	"sync"
 	"time"
 
-	"github.com/streadway/amqp"
+	"github.com/rabbitmq/amqp091-go"
 
 	"github.com/golang-jwt/jwt/v4"
 	"github.com/gorilla/mux"
@@ -49,10 +50,13 @@ type Enrollment struct {
 // CreateCourse - Crear un nuevo curso (solo admin)
 func CreateCourse(client *mongo.Client, w http.ResponseWriter, r *http.Request) {
 	var course Course
-	_ = json.NewDecoder(r.Body).Decode(&course)
+	if err := json.NewDecoder(r.Body).Decode(&course); err != nil {
+		jsonResponse(w, http.StatusBadRequest, map[string]string{"error": "Invalid request body"})
+		return
+	}
 
 	if course.Title == "" || course.Description == "" || course.Instructor == "" || course.Duration <= 0 || course.AvailableSeats <= 0 {
-		jsonResponse(w, http.StatusBadRequest, map[string]string{"error": "Todos los campos son obligatorios y la duración y los asientos disponibles deben ser mayores a 0"})
+		jsonResponse(w, http.StatusBadRequest, map[string]string{"error": "All fields are required and duration and available seats must be greater than 0"})
 		return
 	}
 
@@ -63,18 +67,18 @@ func CreateCourse(client *mongo.Client, w http.ResponseWriter, r *http.Request) 
 	filter := bson.M{"title": course.Title, "instructor": course.Instructor}
 	count, err := collection.CountDocuments(ctx, filter)
 	if err != nil {
-		jsonResponse(w, http.StatusInternalServerError, map[string]string{"error": "Error verificando duplicados: " + err.Error()})
+		jsonResponse(w, http.StatusInternalServerError, map[string]string{"error": "Error checking duplicates: " + err.Error()})
 		return
 	}
 	if count > 0 {
-		jsonResponse(w, http.StatusConflict, map[string]string{"error": "Ya existe un curso con el mismo título e instructor"})
+		jsonResponse(w, http.StatusConflict, map[string]string{"error": "A course with the same title and instructor already exists"})
 		return
 	}
 
 	// Insert the course
 	result, err := collection.InsertOne(ctx, course)
 	if err != nil {
-		jsonResponse(w, http.StatusInternalServerError, map[string]string{"error": "Error al crear el curso"})
+		jsonResponse(w, http.StatusInternalServerError, map[string]string{"error": "Error creating course"})
 		return
 	}
 
@@ -88,19 +92,33 @@ func CreateCourse(client *mongo.Client, w http.ResponseWriter, r *http.Request) 
 // GetAllCourses - Obtener todos los cursos
 func GetAllCourses(client *mongo.Client, w http.ResponseWriter, r *http.Request) {
 	collection := client.Database("coursesdb").Collection("courses")
-	ctx := context.TODO()
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	// Test the connection before proceeding
+	if err := client.Ping(ctx, nil); err != nil {
+		log.Printf("Error connecting to MongoDB: %v", err)
+		jsonResponse(w, http.StatusInternalServerError, map[string]string{"error": "Database connection error"})
+		return
+	}
 
 	cursor, err := collection.Find(ctx, bson.M{})
 	if err != nil {
-		jsonResponse(w, http.StatusInternalServerError, map[string]string{"error": "Error obteniendo los cursos"})
+		log.Printf("Error finding courses: %v", err)
+		jsonResponse(w, http.StatusInternalServerError, map[string]string{"error": "Error finding courses"})
 		return
 	}
 	defer cursor.Close(ctx)
 
 	var courses []Course
 	if err = cursor.All(ctx, &courses); err != nil {
-		jsonResponse(w, http.StatusInternalServerError, map[string]string{"error": "Error escaneando los cursos"})
+		log.Printf("Error decoding courses: %v", err)
+		jsonResponse(w, http.StatusInternalServerError, map[string]string{"error": "Error decoding courses"})
 		return
+	}
+
+	if courses == nil {
+		courses = []Course{} // Return empty array instead of null
 	}
 
 	jsonResponse(w, http.StatusOK, courses)
@@ -108,24 +126,24 @@ func GetAllCourses(client *mongo.Client, w http.ResponseWriter, r *http.Request)
 
 // GetCourse - Obtener un curso por ID
 func GetCourse(client *mongo.Client, w http.ResponseWriter, r *http.Request) {
-	vars := mux.Vars(r)
-	courseID, err := primitive.ObjectIDFromHex(vars["id"])
+	params := mux.Vars(r)
+	courseID, err := primitive.ObjectIDFromHex(params["id"])
 	if err != nil {
-		jsonResponse(w, http.StatusBadRequest, map[string]string{"error": "ID de curso inválido"})
+		jsonResponse(w, http.StatusBadRequest, map[string]string{"error": "Invalid course ID"})
 		return
 	}
 
 	collection := client.Database("coursesdb").Collection("courses")
-	ctx := context.TODO()
+	ctx := context.Background()
 
 	var course Course
-	filter := bson.M{"_id": courseID}
-	err = collection.FindOne(ctx, filter).Decode(&course)
-	if err == mongo.ErrNoDocuments {
-		jsonResponse(w, http.StatusNotFound, map[string]string{"error": "Curso no encontrado"})
-		return
-	} else if err != nil {
-		jsonResponse(w, http.StatusInternalServerError, map[string]string{"error": "Error obteniendo el curso"})
+	err = collection.FindOne(ctx, bson.M{"_id": courseID}).Decode(&course)
+	if err != nil {
+		if err == mongo.ErrNoDocuments {
+			jsonResponse(w, http.StatusNotFound, map[string]string{"error": "Course not found"})
+			return
+		}
+		jsonResponse(w, http.StatusInternalServerError, map[string]string{"error": "Error finding course"})
 		return
 	}
 
@@ -137,7 +155,7 @@ func UpdateCourse(client *mongo.Client, w http.ResponseWriter, r *http.Request) 
 	vars := mux.Vars(r)
 	courseID, err := primitive.ObjectIDFromHex(vars["id"])
 	if err != nil {
-		jsonResponse(w, http.StatusBadRequest, map[string]string{"error": "ID de curso inválido"})
+		jsonResponse(w, http.StatusBadRequest, map[string]string{"error": "Invalid course ID"})
 		return
 	}
 
@@ -145,7 +163,7 @@ func UpdateCourse(client *mongo.Client, w http.ResponseWriter, r *http.Request) 
 	_ = json.NewDecoder(r.Body).Decode(&course)
 
 	if course.Title == "" || course.Description == "" || course.Instructor == "" || course.Duration <= 0 || course.AvailableSeats <= 0 {
-		jsonResponse(w, http.StatusBadRequest, map[string]string{"error": "Todos los campos son obligatorios y la duración debe ser mayor a 0"})
+		jsonResponse(w, http.StatusBadRequest, map[string]string{"error": "All fields are required and duration must be greater than 0"})
 		return
 	}
 
@@ -156,7 +174,7 @@ func UpdateCourse(client *mongo.Client, w http.ResponseWriter, r *http.Request) 
 	update := bson.M{"$set": course}
 	_, err = collection.UpdateOne(ctx, filter, update)
 	if err != nil {
-		jsonResponse(w, http.StatusInternalServerError, map[string]string{"error": "Error actualizando el curso"})
+		jsonResponse(w, http.StatusInternalServerError, map[string]string{"error": "Error updating course"})
 		return
 	}
 
@@ -171,7 +189,7 @@ func DeleteCourse(client *mongo.Client, w http.ResponseWriter, r *http.Request) 
 	vars := mux.Vars(r)
 	courseID, err := primitive.ObjectIDFromHex(vars["id"])
 	if err != nil {
-		jsonResponse(w, http.StatusBadRequest, map[string]string{"error": "ID de curso inválido"})
+		jsonResponse(w, http.StatusBadRequest, map[string]string{"error": "Invalid course ID"})
 		return
 	}
 
@@ -182,26 +200,26 @@ func DeleteCourse(client *mongo.Client, w http.ResponseWriter, r *http.Request) 
 	var course Course
 	err = collection.FindOne(ctx, bson.M{"_id": courseID}).Decode(&course)
 	if err == mongo.ErrNoDocuments {
-		jsonResponse(w, http.StatusNotFound, map[string]string{"message": "No se encontró el curso para eliminar"})
+		jsonResponse(w, http.StatusNotFound, map[string]string{"message": "No course found to delete"})
 		return
 	} else if err != nil {
-		jsonResponse(w, http.StatusInternalServerError, map[string]string{"error": "Error obteniendo el curso"})
+		jsonResponse(w, http.StatusInternalServerError, map[string]string{"error": "Error getting course"})
 		return
 	}
 
 	// Delete the course
 	result, err := collection.DeleteOne(ctx, bson.M{"_id": courseID})
 	if err != nil {
-		jsonResponse(w, http.StatusInternalServerError, map[string]string{"error": "Error eliminando el curso"})
+		jsonResponse(w, http.StatusInternalServerError, map[string]string{"error": "Error deleting course"})
 		return
 	}
 
 	if result.DeletedCount == 0 {
-		jsonResponse(w, http.StatusNotFound, map[string]string{"message": "No se encontró el curso para eliminar"})
+		jsonResponse(w, http.StatusNotFound, map[string]string{"message": "No course found to delete"})
 		return
 	}
 
-	jsonResponse(w, http.StatusOK, map[string]string{"message": "Curso eliminado exitosamente"})
+	jsonResponse(w, http.StatusOK, map[string]string{"message": "Course deleted successfully"})
 
 	// Publish the course to RabbitMQ
 	publishToRabbitMQ(course)
@@ -217,12 +235,12 @@ func jsonResponse(w http.ResponseWriter, status int, data interface{}) {
 func verifyJWT(r *http.Request) (Claims, error) {
 	authHeader := r.Header.Get("Authorization")
 	if authHeader == "" {
-		return Claims{}, errors.New("token no provisto")
+		return Claims{}, errors.New("token not provided")
 	}
 	tokenString := strings.TrimPrefix(authHeader, "Bearer ")
 	token, err := jwt.ParseWithClaims(tokenString, &Claims{}, func(token *jwt.Token) (interface{}, error) {
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-			return nil, errors.New("método de firma inválido")
+			return nil, errors.New("invalid signing method")
 		}
 		return jwtSecret, nil
 	})
@@ -304,7 +322,7 @@ func CreateEnrollment(client *mongo.Client, w http.ResponseWriter, r *http.Reque
 }
 
 func publishEnrollmentUpdateToRabbitMQ(courseID primitive.ObjectID, seatChange int) {
-	conn, err := amqp.Dial("amqp://guest:guest@rabbitmq:5672/")
+	conn, err := amqp091.Dial("amqp://guest:guest@rabbitmq:5672/")
 	if err != nil {
 		log.Printf("Failed to connect to RabbitMQ: %v", err)
 		return
@@ -334,7 +352,7 @@ func publishEnrollmentUpdateToRabbitMQ(courseID primitive.ObjectID, seatChange i
 		"course_updates",  // routing key
 		false,             // mandatory
 		false,             // immediate
-		amqp.Publishing{
+		amqp091.Publishing{
 			ContentType: "application/json",
 			Body:        body,
 		})
@@ -409,9 +427,26 @@ func CheckEnrollment(client *mongo.Client, w http.ResponseWriter, r *http.Reques
 }
 
 func publishToRabbitMQ(course Course) {
-	conn, err := amqp.Dial("amqp://guest:guest@rabbitmq:5672/")
+	rabbitmqURI := os.Getenv("RABBITMQ_URI")
+	if rabbitmqURI == "" {
+		rabbitmqURI = "amqp://guest:guest@rabbitmq:5672/"
+	}
+
+	var conn *amqp091.Connection
+	var err error
+
+	// Retry connection up to 5 times
+	for i := 0; i < 5; i++ {
+		conn, err = amqp091.Dial(rabbitmqURI)
+		if err == nil {
+			break
+		}
+		log.Printf("Failed to connect to RabbitMQ (attempt %d/5): %v", i+1, err)
+		time.Sleep(2 * time.Second)
+	}
+
 	if err != nil {
-		log.Printf("Failed to connect to RabbitMQ: %v", err)
+		log.Printf("Failed to connect to RabbitMQ after 5 attempts: %v", err)
 		return
 	}
 	defer conn.Close()
@@ -423,32 +458,90 @@ func publishToRabbitMQ(course Course) {
 	}
 	defer ch.Close()
 
-	// Convert the course data to match the search API format
-	courseData := map[string]interface{}{
-		"id":              course.ID.Hex(),
-		"title":           course.Title,
-		"description":     course.Description,
-		"instructor":      course.Instructor,
-		"duration":        course.Duration,
-		"available_seats": course.AvailableSeats,
+	// Declare the queue
+	q, err := ch.QueueDeclare(
+		"course_updates", // name
+		true,            // durable
+		false,           // delete when unused
+		false,           // exclusive
+		false,           // no-wait
+		nil,            // arguments
+	)
+	if err != nil {
+		log.Printf("Failed to declare queue: %v", err)
+		return
 	}
 
-	body, err := json.Marshal(courseData)
+	// Create event payload
+	event := map[string]interface{}{
+		"action": "upsert",  // upsert for both create and update
+		"course": map[string]interface{}{
+			"id":              course.ID.Hex(),
+			"title":           course.Title,
+			"description":     course.Description,
+			"instructor":      course.Instructor,
+			"duration":        course.Duration,
+			"available_seats": course.AvailableSeats,
+		},
+	}
+
+	body, err := json.Marshal(event)
 	if err != nil {
-		log.Printf("Failed to marshal course: %v", err)
+		log.Printf("Failed to marshal event: %v", err)
 		return
 	}
 
 	err = ch.Publish(
-		"",               // exchange
-		"course_updates", // routing key
-		false,           // mandatory
-		false,           // immediate
-		amqp.Publishing{
+		"",           // exchange
+		q.Name,       // routing key
+		false,        // mandatory
+		false,        // immediate
+		amqp091.Publishing{
 			ContentType: "application/json",
 			Body:        body,
 		})
 	if err != nil {
-		log.Printf("Failed to publish a message: %v", err)
+		log.Printf("Failed to publish message: %v", err)
 	}
+}
+
+func CheckAvailability(client *mongo.Client, w http.ResponseWriter, r *http.Request) {
+	var courseIDs []string
+	if err := json.NewDecoder(r.Body).Decode(&courseIDs); err != nil {
+		jsonResponse(w, http.StatusBadRequest, map[string]string{"error": "Invalid request body"})
+		return
+	}
+
+	var objectIDs []primitive.ObjectID
+	for _, id := range courseIDs {
+		objectID, err := primitive.ObjectIDFromHex(id)
+		if err != nil {
+			jsonResponse(w, http.StatusBadRequest, map[string]string{"error": "Invalid course ID format"})
+			return
+		}
+		objectIDs = append(objectIDs, objectID)
+	}
+
+	collection := client.Database("coursesdb").Collection("courses")
+	ctx := context.Background()
+
+	filter := bson.M{
+		"_id": bson.M{"$in": objectIDs},
+		"available_seats": bson.M{"$gt": 0},
+	}
+
+	cursor, err := collection.Find(ctx, filter)
+	if err != nil {
+		jsonResponse(w, http.StatusInternalServerError, map[string]string{"error": "Error checking availability"})
+		return
+	}
+	defer cursor.Close(ctx)
+
+	var availableCourses []Course
+	if err = cursor.All(ctx, &availableCourses); err != nil {
+		jsonResponse(w, http.StatusInternalServerError, map[string]string{"error": "Error processing courses"})
+		return
+	}
+
+	jsonResponse(w, http.StatusOK, availableCourses)
 }

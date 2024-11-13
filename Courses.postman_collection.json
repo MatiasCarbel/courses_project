@@ -1,0 +1,526 @@
+{
+	"info": {
+		"_postman_id": "6f60dc50-6c43-4ff3-94c2-4171a2042b37",
+		"name": "Courses",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+		"_exporter_id": "36315938"
+	},
+	"item": [
+		{
+			"name": "Create User",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json",
+						"type": "text"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"username\": \"numaaaaaa\",\n  \"email\": \"numaaaaaa@gmail.com\",\n  \"password\": \"password123\"\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "http://localhost:8001/users",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "8001",
+					"path": [
+						"users"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Login",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json",
+						"type": "text"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"email\": \"numaaaaasdasdaa@gmail.com\",\n  \"password\": \"password123\"\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "http://localhost:8001/login",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "8001",
+					"path": [
+						"login"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Get User",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "http://localhost:8001/users/29",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "8001",
+					"path": [
+						"users",
+						"29"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Change User",
+			"request": {
+				"method": "PUT",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json",
+						"type": "text"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"username\": \"numitoidasdasdeeea\",\n  \"email\": \"numaaaaasdasdaa@gmail.com\"\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "http://localhost:8001/users/29",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "8001",
+					"path": [
+						"users",
+						"29"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Delete User",
+			"request": {
+				"method": "DELETE",
+				"header": [],
+				"url": {
+					"raw": "http://localhost:8001/users/25",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "8001",
+					"path": [
+						"users",
+						"25"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Get Courses",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "http://localhost:8002/courses",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "8002",
+					"path": [
+						"courses"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Get Course",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "http://localhost:8002/courses/671ab05afa28e8b38dc79473",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "8002",
+					"path": [
+						"courses",
+						"671ab05afa28e8b38dc79473"
+					]
+				},
+				"description": "Generated from cURL: curl -X GET http://localhost:8002/courses/{id}"
+			},
+			"response": []
+		},
+		{
+			"name": "Update Course",
+			"request": {
+				"method": "PUT",
+				"header": [
+					{
+						"key": "Authorization",
+						"value": "Bearer <token>"
+					},
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"title\": \"Curso Actualizado\",\n  \"description\": \"Descripción actualizada\",\n  \"instructor\": \"Nombre del instructor\",\n  \"duration\": 15,\n  \"available_seats\": 3\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "http://localhost:8002/courses/671ab05afa28e8b38dc79473",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "8002",
+					"path": [
+						"courses",
+						"671ab05afa28e8b38dc79473"
+					]
+				},
+				"description": "Generated from cURL: curl -X PUT http://localhost:8002/courses/{id} \\\n-H \"Authorization: Bearer <token>\" \\\n-H \"Content-Type: application/json\" \\\n-d '{\n  \"title\": \"Curso Actualizado\",\n  \"description\": \"Descripción actualizada\",\n  \"instructor\": \"Nombre del instructor\",\n  \"duration\": 15\n}'"
+			},
+			"response": []
+		},
+		{
+			"name": "Delete Course",
+			"request": {
+				"method": "DELETE",
+				"header": [
+					{
+						"key": "Authorization",
+						"value": "Bearer <token>"
+					}
+				],
+				"url": {
+					"raw": "http://localhost:8002/courses/67101bb99aba6fed28653b25",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "8002",
+					"path": [
+						"courses",
+						"67101bb99aba6fed28653b25"
+					]
+				},
+				"description": "Generated from cURL: curl -X DELETE http://localhost:8002/courses/{id} \\\n-H \"Authorization: Bearer <token>\""
+			},
+			"response": []
+		},
+		{
+			"name": "Inscribirse a un Curso",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"course_id\": \"671ab05afa28e8b38dc79473\",\n  \"user_id\": 29,\n  \"date\": \"2023-10-10T00:00:00Z\"\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "http://localhost:8002/enrollments",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "8002",
+					"path": [
+						"enrollments"
+					]
+				},
+				"description": "Generated from cURL: curl -X POST http://localhost:8002/enrollments \\\n-H \"Content-Type: application/json\" \\\n-d '{\n  \"course_id\": \"COURSE_ID\",\n  \"user_id\": \"USER_ID\",\n  \"date\": \"2023-10-10T00:00:00Z\"\n}'"
+			},
+			"response": []
+		},
+		{
+			"name": "Get Courses Availabilities",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "[\n  \"671ab05afa28e8b38dc79473\"\n]",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "http://localhost:8002/courses/availability",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "8002",
+					"path": [
+						"courses",
+						"availability"
+					]
+				},
+				"description": "Generated from cURL: curl -X POST http://localhost:8002/courses/availability \\\n-H \"Content-Type: application/json\" \\\n-d '[\n  \"COURSE_ID_1\",\n  \"COURSE_ID_2\"\n]'"
+			},
+			"response": []
+		},
+		{
+			"name": "Check User Enrollment",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "http://localhost:8002/enrollments/check/671ab05afa28e8b38dc79473",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "8002",
+					"path": [
+						"enrollments",
+						"check",
+						"671ab05afa28e8b38dc79473"
+					]
+				},
+				"description": "Generated from cURL: curl -X POST http://localhost:8002/courses/availability \\\n-H \"Content-Type: application/json\" \\\n-d '[\n  \"COURSE_ID_1\",\n  \"COURSE_ID_2\"\n]'"
+			},
+			"response": []
+		},
+		{
+			"name": "SolR",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "http://localhost:8983/solr/courses/select?q=*:*",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "8983",
+					"path": [
+						"solr",
+						"courses",
+						"select"
+					],
+					"query": [
+						{
+							"key": "q",
+							"value": "*:*"
+						}
+					]
+				},
+				"description": "Generated from cURL:    curl \"http://localhost:8983/solr/courses/select?q=*:*\""
+			},
+			"response": []
+		},
+		{
+			"name": "Add SolR Document",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "[{\"id\":\"1\",\"title\":\"Test Course\",\"description\":\"A test course\",\"instructor\":\"John Doe\",\"duration\":10,\"available_seats\":20}]",
+					"options": {
+						"raw": {
+							"language": "text"
+						}
+					}
+				},
+				"url": {
+					"raw": "http://localhost:8983/solr/courses/update/json/docs?commit=true",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "8983",
+					"path": [
+						"solr",
+						"courses",
+						"update",
+						"json",
+						"docs"
+					],
+					"query": [
+						{
+							"key": "commit",
+							"value": "true"
+						}
+					]
+				},
+				"description": "Generated from cURL:    curl -X POST -H \"Content-Type: application/json\" \\\n   --data-binary '[{\"id\":\"1\",\"title\":\"Test Course\",\"description\":\"A test course\",\"instructor\":\"John Doe\",\"duration\":10,\"available_seats\":20}]' \\\n   \"http://localhost:8983/solr/courses/update/json/docs?commit=true\""
+			},
+			"response": []
+		},
+		{
+			"name": "Get Available Courses",
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "Accept",
+						"value": "application/json"
+					}
+				],
+				"url": {
+					"raw": "http://localhost:8003/search?q=your_search_query&available=true",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "8003",
+					"path": [
+						"search"
+					],
+					"query": [
+						{
+							"key": "q",
+							"value": "your_search_query"
+						},
+						{
+							"key": "available",
+							"value": "true"
+						}
+					]
+				},
+				"description": "Generated from cURL: curl -X GET \"http://localhost:8003/search?q=your_search_query&available=true\" -H \"Accept: application/json\""
+			},
+			"response": []
+		},
+		{
+			"name": "Create Courses",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					},
+					{
+						"key": "Authorization",
+						"value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VybmFtZSI6Im51bWl0b2lkYXNkYXNkZWVlYSIsInVzZXJfaWQiOjI5LCJhZG1pbiI6dHJ1ZSwiUmVnaXN0ZXJlZENsYWltcyI6eyJleHAiOjE3MzA1NzAwMTd9fQ.GkEfLSU8TIYhW1322MyoZa31-m2JK92vvJsTt25mdH4"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"title\": [\"test 5\"],\n  \"description\": [\"Tebst 5\"],\n  \"instructor\": [\"testb 5\"],\n  \"duration\": [10],\n  \"available_seats\": [1]\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "http://localhost:8002/courses",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "8002",
+					"path": [
+						"courses"
+					]
+				},
+				"description": "Generated from cURL: curl --location 'http://localhost:8002/courses' \\\n--header 'Content-Type: application/json' \\\n--header 'Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VybmFtZSI6Im51bWl0b2lkYXNkYXNkZWVlYSIsInVzZXJfaWQiOjI5LCJhZG1pbiI6dHJ1ZSwiUmVnaXN0ZXJlZENsYWltcyI6eyJleHAiOjE3MzA1NzAwMTd9fQ.GkEfLSU8TIYhW1322MyoZa31-m2JK92vvJsTt25mdH4' \\\n--data '{\n  \"title\": [\"test 2ab\"],\n  \"description\": [\"Tebst de cursos nashei 2a\"],\n  \"instructor\": [\"testb 2a\"],\n  \"duration\": [10],\n  \"available_seats\": [1]\n}'"
+			},
+			"response": []
+		}
+	],
+	"auth": {
+		"type": "bearer",
+		"bearer": [
+			{
+				"key": "token",
+				"value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VybmFtZSI6Im51bWl0b2lkYXNkYXNkZWVlYSIsInVzZXJfaWQiOjI5LCJhZG1pbiI6dHJ1ZSwiUmVnaXN0ZXJlZENsYWltcyI6eyJleHAiOjE3MzA1NzAwMTd9fQ.GkEfLSU8TIYhW1322MyoZa31-m2JK92vvJsTt25mdH4",
+				"type": "string"
+			}
+		]
+	},
+	"event": [
+		{
+			"listen": "prerequest",
+			"script": {
+				"type": "text/javascript",
+				"packages": {},
+				"exec": [
+					""
+				]
+			}
+		},
+		{
+			"listen": "test",
+			"script": {
+				"type": "text/javascript",
+				"packages": {},
+				"exec": [
+					""
+				]
+			}
+		}
+	]
+}

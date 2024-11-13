@@ -9,7 +9,7 @@ export async function GET(request: NextRequest) {
   const cookieValue = getCookieValue();
 
   const decoded = jwtDecode(cookieValue ?? "") as any;
-  const userId = decoded?.id;
+  const userId = decoded?.user_id;
 
   const url = `${baseUrl}/user/courses/${userId}`;
 

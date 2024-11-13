@@ -15,46 +15,53 @@ import { useUser } from "@/hooks/useUser";
 export default function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
   const router = useRouter();
   const { refreshUser } = useUser();
 
   const handleSubmit = async () => {
-    // check that email is well formated.
-    if (!email.includes("@") && !email.includes(".")) {
-      console.error("Invalid email");
+    setError("");
+
+    // Validate email format
+    if (!email.includes("@") || !email.includes(".")) {
+      setError("Please enter a valid email address");
       return;
     }
 
-    // check that password is at least 8 characters long.
+    // Validate password
     if (password.length < 8) {
-      console.error("Password must be at least 8 characters long");
+      setError("Password must be at least 8 characters long");
       return;
     }
 
-    // Handle login logic here
-    const response = await fetch("/api/auth/login", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ email, password }),
-    });
+    try {
+      const response = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ email, password }),
+      });
 
-    const responseJson = await response.json();
-    console.log(responseJson);
+      const data = await response.json();
 
-    if (response.ok) {
+      console.log('data: ', data);
+
+      if (!response.ok) {
+        setError(data.message || "Invalid credentials");
+        return;
+      }
+
       await refreshUser();
       router.push(routes.home);
-    } else {
-      // Invalid credentials
-      console.error("Invalid credentials");
+    } catch (err) {
+      setError("An error occurred. Please try again.");
     }
   };
 
   return (
     <div className="flex items-center justify-center">
-      <Card className="w-full max-w-md ">
+      <Card className="w-full max-w-md">
         <div className="flex justify-center py-6">
           <div className={`${S.titleContainer} ml-2`}>
             <h1 className={`text-2xl font-bold ${S.title}`}>UCC</h1>
@@ -66,17 +73,25 @@ export default function Login() {
           <CardDescription>Enter your email and password to sign in to your account.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
+          {error && (
+            <div className="p-3 text-sm text-red-500 bg-red-50 rounded-md">
+              {error}
+            </div>
+          )}
           <div className="space-y-2">
-            <Label htmlFor="email">
-              Email
-            </Label>
-            <Input id="email" placeholder="m@example.com" value={email} onChange={e => setEmail(e.target.value)} required type="email" />
+            <Label htmlFor="email">Email</Label>
+            <Input
+              id="email"
+              placeholder="m@example.com"
+              value={email}
+              onChange={e => setEmail(e.target.value)}
+              required
+              type="email"
+            />
           </div>
           <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <Label htmlFor="password">
-                Password
-              </Label>
+              <Label htmlFor="password">Password</Label>
               <Link
                 className="text-sm font-medium text-[rgb(159,51,233)] hover:underline dark:text-[rgb(159,51,233)]"
                 href="#"
@@ -84,11 +99,20 @@ export default function Login() {
                 Forgot password?
               </Link>
             </div>
-            <Input id="password" required value={password} onChange={e => setPassword(e.target.value)} type="password" />
+            <Input
+              id="password"
+              required
+              value={password}
+              onChange={e => setPassword(e.target.value)}
+              type="password"
+            />
           </div>
         </CardContent>
         <CardFooter className="grid gap-2">
-          <Button className="w-full bg-[rgb(159,51,233)] text-white hover:bg-[rgb(159,51,233)]/90" type="submit" onClick={handleSubmit}>
+          <Button
+            className="w-full bg-[rgb(159,51,233)] text-white hover:bg-[rgb(159,51,233)]/90"
+            onClick={handleSubmit}
+          >
             Sign In
           </Button>
           <Link href="/register">
@@ -102,5 +126,5 @@ export default function Login() {
         </CardFooter>
       </Card>
     </div>
-  )
+  );
 }

@@ -1,22 +1,46 @@
 import { NextRequest, NextResponse } from "next/server";
 
 export async function GET(request: NextRequest) {
-  const baseUrl = process.env.NEXT_PUBLIC_BASE_API_URL ?? "";
+  const searchParams = request.nextUrl.searchParams;
+  const name = searchParams.get("name") || "";
+  const category = searchParams.get("category") || "";
 
-  const category = request.nextUrl.searchParams.get("category") ?? "";
-  const name = request.nextUrl.searchParams.get("name") ?? "";
+  const baseUrl =
+    process.env.NEXT_PUBLIC_BASE_API_URL ?? "http://search-api:8003";
 
-  const url = `${baseUrl}/courses/search?q=${name}&category=${category}`;
+  try {
+    const searchUrl = `${baseUrl}/search?q=${encodeURIComponent(
+      name
+    )}&category=${encodeURIComponent(category)}`;
 
-  const coursesReq = await fetch(url, {
-    cache: "no-cache",
-  });
+    console.log("searchUrl: ", searchUrl);
 
-  const coursesJson = await coursesReq.json();
-  const courses = coursesJson.results;
+    const coursesReq = await fetch(searchUrl, {
+      method: "GET",
+      cache: "no-cache",
+      headers: {
+        Accept: "application/json",
+      },
+    });
 
-  return NextResponse.json(
-    { message: "Courses fetched", courses },
-    { status: 200 }
-  );
+    console.log("coursesReq: ", coursesReq);
+
+    if (!coursesReq.ok) {
+      throw new Error(`Failed to fetch courses: ${coursesReq.statusText}`);
+    }
+
+    const coursesJson = await coursesReq.json();
+    const courses = coursesJson?.response?.docs || [];
+
+    return NextResponse.json(
+      { message: "Courses fetched", courses },
+      { status: 200 }
+    );
+  } catch (error: any) {
+    console.error("Courses API error:", error);
+    return NextResponse.json(
+      { message: "Error fetching courses", error: error.message },
+      { status: 500 }
+    );
+  }
 }

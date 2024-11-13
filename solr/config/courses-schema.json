@@ -1,0 +1,40 @@
+{
+  "add-field": [
+    {
+      "name": "title",
+      "type": "text_general",
+      "indexed": true,
+      "stored": true
+    },
+    {
+      "name": "description",
+      "type": "text_general",
+      "indexed": true,
+      "stored": true
+    },
+    {
+      "name": "category",
+      "type": "string",
+      "indexed": true,
+      "stored": true
+    },
+    {
+      "name": "instructor",
+      "type": "string",
+      "indexed": true,
+      "stored": true
+    },
+    {
+      "name": "duration",
+      "type": "pint",
+      "indexed": true,
+      "stored": true
+    },
+    {
+      "name": "available_seats",
+      "type": "pint",
+      "indexed": true,
+      "stored": true
+    }
+  ]
+}

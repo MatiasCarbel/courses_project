@@ -2,29 +2,55 @@ import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 
 export async function POST(request: Request) {
-  // Handle login logic here
   const data = await request.json();
   const { email, password } = data;
 
-  const baseUrl = process.env.NEXT_PUBLIC_BASE_API_URL ?? "";
+  const baseUrl =
+    process.env.NEXT_PUBLIC_BASE_API_URL ?? "http://users-api:8001";
 
-  const usersReq = await fetch(`${baseUrl}/user/login`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({ email, password }),
-  });
+  try {
+    const loginReq = await fetch(`${baseUrl}/login`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ email, password }),
+      credentials: "include",
+    });
 
-  const userJson = await usersReq.json();
-  if (userJson.error)
-    return NextResponse.json({ message: userJson.error }, { status: 401 });
+    if (!loginReq.ok) {
+      const errorText = await loginReq.text();
+      console.error("Login failed:", errorText);
+      return NextResponse.json(
+        { message: "Invalid credentials" },
+        { status: 401 }
+      );
+    }
 
-  const cookieStore = cookies();
-  cookieStore.set("auth", userJson?.token ?? "");
+    const loginJson = await loginReq.json();
 
-  return NextResponse.json(
-    { message: "Logged In.", user: userJson },
-    { status: 200 }
-  );
+    // Create response with cookie
+    const response = NextResponse.json(
+      { message: "Logged In.", user: loginJson },
+      { status: 200 }
+    );
+
+    // Set the cookie from the API response
+    response.cookies.set({
+      name: "auth",
+      value: loginJson.token,
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      path: "/",
+    });
+
+    return response;
+  } catch (error) {
+    console.error("Login error:", error);
+    return NextResponse.json(
+      { message: "An error occurred during login" },
+      { status: 500 }
+    );
+  }
 }

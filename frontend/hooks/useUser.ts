@@ -38,10 +38,6 @@ export function useUser() {
     });
   };
 
-  // useEffect(() => {
-  //   refreshUser();
-  // }, []);
-
   // on route change refresh user.
   useEffect(() => {
     refreshUser();
