@@ -2,7 +2,7 @@ import { formatCookies } from "@/lib/api.utils";
 import { NextRequest, NextResponse } from "next/server";
 
 export async function POST(request: NextRequest) {
-  const baseUrl = process.env.NEXT_PUBLIC_BASE_API_URL ?? "";
+  const baseUrl = process.env.NEXT_PUBLIC_USERS_API_URL ?? "";
 
   const formData = await request.formData();
   const courseId = formData.get("courseId");

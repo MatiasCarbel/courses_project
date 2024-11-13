@@ -25,7 +25,8 @@ export default function Course({ params }: { params: { slug: string } }) {
   }, []);
 
   const updateCourses = () => {
-    fetch(`/api/courses/courseId?courseId=${params?.slug}`)
+    console.log(params?.slug)
+    fetch(`/api/courses/${params?.slug}`)
       .then((res) => res.json())
       .then((data) => {
         setCourse(data?.course);
@@ -76,7 +77,7 @@ export default function Course({ params }: { params: { slug: string } }) {
   };
 
   const downloadResources = async () => {
-    const baseUrl = process.env.NEXT_PUBLIC_BASE_API_URL ?? "";
+    const baseUrl = process.env.NEXT_PUBLIC_USERS_API_URL ?? "";
     const url = `${baseUrl}/download/${params?.slug}`;
     console.log(url);
 

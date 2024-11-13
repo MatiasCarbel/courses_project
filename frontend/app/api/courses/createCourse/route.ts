@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { jwtDecode } from "jwt-decode";
 
 export async function POST(request: NextRequest) {
-  const baseUrl = process.env.NEXT_PUBLIC_BASE_API_URL ?? "";
+  const baseUrl = process.env.NEXT_PUBLIC_USERS_API_URL ?? "";
 
   const data = await request.json();
   const {

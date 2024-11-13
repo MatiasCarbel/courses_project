@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/gorilla/mux"
@@ -22,6 +23,7 @@ type Course struct {
 	Instructor     string `json:"instructor"`
 	Duration       int    `json:"duration"`
 	AvailableSeats int    `json:"available_seats"`
+	Category       string `json:"category"`
 }
 
 func main() {
@@ -89,6 +91,8 @@ func consumeRabbitMQMessages(conn *amqp.Connection) {
 
 	go func() {
 			for d := range msgs {
+					log.Printf("Received message from RabbitMQ: %s", string(d.Body))
+					
 					var event map[string]interface{}
 					if err := json.Unmarshal(d.Body, &event); err != nil {
 							log.Printf("Error parsing message: %v", err)
@@ -97,6 +101,8 @@ func consumeRabbitMQMessages(conn *amqp.Connection) {
 
 					action := event["action"].(string)
 					courseData := event["course"].(map[string]interface{})
+
+					log.Printf("Processing %s action for course ID: %s", action, courseData["id"])
 
 					switch action {
 					case "upsert":
@@ -107,8 +113,14 @@ func consumeRabbitMQMessages(conn *amqp.Connection) {
 									Instructor:     courseData["instructor"].(string),
 									Duration:       int(courseData["duration"].(float64)),
 									AvailableSeats: int(courseData["available_seats"].(float64)),
+									Category:       courseData["category"].(string),
 							}
 							updateSolR(course)
+							log.Printf("Course %s updated in Solr", course.ID)
+					case "delete":
+							courseID := courseData["id"].(string)
+							deleteSolRDocument(courseID)
+							log.Printf("Course %s deleted from Solr", courseID)
 					}
 			}
 	}()
@@ -152,13 +164,13 @@ func handleSeatUpdate(courseID string, seatChange int) {
 func updateSolR(course Course) {
 	solrURL := "http://solr:8983/solr/courses/update?commit=true"
 	
-	// Create a map for the Solr document
 	solrDoc := map[string]interface{}{
 		"add": map[string]interface{}{
 			"doc": map[string]interface{}{
 				"id":              course.ID,
 				"title":          course.Title,
 				"description":    course.Description,
+				"category":       course.Category,
 				"instructor":     course.Instructor,
 				"duration":       course.Duration,
 				"available_seats": course.AvailableSeats,
@@ -190,6 +202,8 @@ func updateSolR(course Course) {
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
 		log.Printf("SolR update failed with status: %v, body: %s", resp.Status, string(body))
+	} else {
+		log.Printf("Successfully updated course %s in Solr", course.ID)
 	}
 }
 
@@ -206,7 +220,7 @@ func searchHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	query := r.URL.Query().Get("q")
-	available := r.URL.Query().Get("available")
+	category := r.URL.Query().Get("category")
 
 	solrURL := os.Getenv("SOLR_URL")
 	if solrURL == "" {
@@ -216,33 +230,70 @@ func searchHandler(w http.ResponseWriter, r *http.Request) {
 	// Build Solr query URL
 	searchURL := fmt.Sprintf("%s/solr/courses/select?wt=json", solrURL)
 	
-	if query == "" || query == "*:*" {
-		searchURL += "&q=*:*"
-	} else {
-		searchURL += fmt.Sprintf("&q=title:%s OR description:%s", 
-			url.QueryEscape(query), url.QueryEscape(query))
+	// Build query string
+	queryParts := []string{}
+	
+	if query != "" {
+		// Escapar espacios y caracteres especiales
+		escapedQuery := strings.Replace(query, " ", "\\ ", -1)
+		queryParts = append(queryParts, fmt.Sprintf("(title:*%s* OR description:*%s*)", 
+			url.QueryEscape(escapedQuery), url.QueryEscape(escapedQuery)))
 	}
-
-	if available == "true" {
-		searchURL += "&fq=available_seats:[1 TO *]"
+	
+	if category != "" {
+		queryParts = append(queryParts, fmt.Sprintf("category:%s", 
+			url.QueryEscape(category)))
 	}
+	
+	finalQuery := "*:*"
+	if len(queryParts) > 0 {
+		finalQuery = strings.Join(queryParts, " AND ")
+	}
+	
+	searchURL += "&q=" + url.QueryEscape(finalQuery)
 
-	log.Printf("Querying Solr: %s", searchURL)
-
+	// Execute search request
 	resp, err := http.Get(searchURL)
 	if err != nil {
-		log.Printf("Error querying Solr: %v", err)
-		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 	defer resp.Body.Close()
 
-	var result map[string]interface{}
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		log.Printf("Error decoding Solr response: %v", err)
-		http.Error(w, "Error processing response", http.StatusInternalServerError)
+	// Copy response to client
+	io.Copy(w, resp.Body)
+}
+
+func deleteSolRDocument(courseID string) {
+	solrURL := "http://solr:8983/solr/courses/update?commit=true"
+	
+	deleteDoc := map[string]interface{}{
+		"delete": courseID,
+	}
+	
+	deleteJSON, err := json.Marshal(deleteDoc)
+	if err != nil {
+		log.Printf("Error marshaling delete request: %v", err)
 		return
 	}
 
-	json.NewEncoder(w).Encode(result)
+	req, err := http.NewRequest("POST", solrURL, bytes.NewBuffer(deleteJSON))
+	if err != nil {
+		log.Printf("Error creating delete request: %v", err)
+		return
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		log.Printf("Error deleting from SolR: %v", err)
+		return
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		log.Printf("SolR delete failed with status: %v, body: %s", resp.Status, string(body))
+	}
 }

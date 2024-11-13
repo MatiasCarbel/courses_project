@@ -4,8 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log"
 	"net/http"
+	"net/url"
 	"os"
 	"strings"
 	"sync"
@@ -37,6 +39,7 @@ type Course struct {
 	Instructor     string            `bson:"instructor" json:"instructor"`
 	Duration       int               `bson:"duration" json:"duration"`
 	AvailableSeats int              `bson:"available_seats" json:"available_seats"`
+	Category       string            `bson:"category" json:"category"`
 }
 
 // Enrollment representa la estructura de una inscripción
@@ -55,8 +58,25 @@ func CreateCourse(client *mongo.Client, w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	if course.Title == "" || course.Description == "" || course.Instructor == "" || course.Duration <= 0 || course.AvailableSeats <= 0 {
-		jsonResponse(w, http.StatusBadRequest, map[string]string{"error": "All fields are required and duration and available seats must be greater than 0"})
+	if course.Title == "" || course.Description == "" || course.Instructor == "" || course.Duration <= 0 || course.AvailableSeats <= 0 || course.Category == "" {
+		jsonResponse(w, http.StatusBadRequest, map[string]string{
+			"error": "All fields are required (title, description, instructor, duration, available_seats, category) and numeric values must be greater than 0"})
+		return
+	}
+
+	// Validate category is one of the allowed values
+	validCategories := []string{"web-development", "mobile-development", "data-science", "design", "business"}
+	isValidCategory := false
+	for _, validCat := range validCategories {
+		if course.Category == validCat {
+			isValidCategory = true
+			break
+		}
+	}
+
+	if !isValidCategory {
+		jsonResponse(w, http.StatusBadRequest, map[string]string{
+			"error": "Invalid category. Must be one of: web-development, mobile-development, data-science, design, business"})
 		return
 	}
 
@@ -160,21 +180,51 @@ func UpdateCourse(client *mongo.Client, w http.ResponseWriter, r *http.Request) 
 	}
 
 	var course Course
-	_ = json.NewDecoder(r.Body).Decode(&course)
+	if err := json.NewDecoder(r.Body).Decode(&course); err != nil {
+		jsonResponse(w, http.StatusBadRequest, map[string]string{"error": "Invalid request body"})
+		return
+	}
 
-	if course.Title == "" || course.Description == "" || course.Instructor == "" || course.Duration <= 0 || course.AvailableSeats <= 0 {
-		jsonResponse(w, http.StatusBadRequest, map[string]string{"error": "All fields are required and duration must be greater than 0"})
+	// Validate all required fields
+	if course.Title == "" || course.Description == "" || course.Instructor == "" || 
+	   course.Duration <= 0 || course.AvailableSeats <= 0 || course.Category == "" {
+		jsonResponse(w, http.StatusBadRequest, map[string]string{
+			"error": "All fields are required (title, description, instructor, duration, available_seats, category) and numeric values must be greater than 0"})
+		return
+	}
+
+	// Validate category
+	validCategories := []string{"web-development", "mobile-development", "data-science", "design", "business"}
+	isValidCategory := false
+	for _, validCat := range validCategories {
+		if course.Category == validCat {
+			isValidCategory = true
+			break
+		}
+	}
+
+	if !isValidCategory {
+		jsonResponse(w, http.StatusBadRequest, map[string]string{
+			"error": "Invalid category. Must be one of: web-development, mobile-development, data-science, design, business"})
 		return
 	}
 
 	collection := client.Database("coursesdb").Collection("courses")
 	ctx := context.TODO()
 
+	// Set the ID to ensure it's preserved in the update
+	course.ID = courseID
+
 	filter := bson.M{"_id": courseID}
 	update := bson.M{"$set": course}
-	_, err = collection.UpdateOne(ctx, filter, update)
+	result, err := collection.UpdateOne(ctx, filter, update)
 	if err != nil {
 		jsonResponse(w, http.StatusInternalServerError, map[string]string{"error": "Error updating course"})
+		return
+	}
+
+	if result.MatchedCount == 0 {
+		jsonResponse(w, http.StatusNotFound, map[string]string{"error": "Course not found"})
 		return
 	}
 
@@ -196,33 +246,35 @@ func DeleteCourse(client *mongo.Client, w http.ResponseWriter, r *http.Request) 
 	collection := client.Database("coursesdb").Collection("courses")
 	ctx := context.TODO()
 
-	// Retrieve the course details before deletion
+	// Check if course exists in MongoDB
 	var course Course
 	err = collection.FindOne(ctx, bson.M{"_id": courseID}).Decode(&course)
-	if err == mongo.ErrNoDocuments {
-		jsonResponse(w, http.StatusNotFound, map[string]string{"message": "No course found to delete"})
-		return
-	} else if err != nil {
-		jsonResponse(w, http.StatusInternalServerError, map[string]string{"error": "Error getting course"})
+	mongoExists := err != mongo.ErrNoDocuments
+
+	// Check if course exists in Solr
+	solrExists := checkSolrCourse(courseID.Hex())
+
+	// If course doesn't exist in either system
+	if !mongoExists && !solrExists {
+		jsonResponse(w, http.StatusNotFound, map[string]string{"message": "Course not found"})
 		return
 	}
 
-	// Delete the course
-	result, err := collection.DeleteOne(ctx, bson.M{"_id": courseID})
-	if err != nil {
-		jsonResponse(w, http.StatusInternalServerError, map[string]string{"error": "Error deleting course"})
-		return
+	// If course exists in MongoDB, delete it
+	if mongoExists {
+		_, err = collection.DeleteOne(ctx, bson.M{"_id": courseID})
+		if err != nil {
+			jsonResponse(w, http.StatusInternalServerError, map[string]string{"error": "Error deleting course from MongoDB"})
+			return
+		}
 	}
 
-	if result.DeletedCount == 0 {
-		jsonResponse(w, http.StatusNotFound, map[string]string{"message": "No course found to delete"})
-		return
+	// If course exists in Solr or was in MongoDB, delete from Solr
+	if solrExists || mongoExists {
+		publishDeleteEvent(courseID)
 	}
 
 	jsonResponse(w, http.StatusOK, map[string]string{"message": "Course deleted successfully"})
-
-	// Publish the course to RabbitMQ
-	publishToRabbitMQ(course)
 }
 
 // jsonResponse is a helper function to send JSON responses
@@ -458,7 +510,6 @@ func publishToRabbitMQ(course Course) {
 	}
 	defer ch.Close()
 
-	// Declare the queue
 	q, err := ch.QueueDeclare(
 		"course_updates", // name
 		true,            // durable
@@ -472,13 +523,14 @@ func publishToRabbitMQ(course Course) {
 		return
 	}
 
-	// Create event payload
+	// Create event payload with the correct course ID
 	event := map[string]interface{}{
-		"action": "upsert",  // upsert for both create and update
+		"action": "upsert",
 		"course": map[string]interface{}{
-			"id":              course.ID.Hex(),
+			"id":              course.ID.Hex(), // Convert ObjectID to string
 			"title":           course.Title,
 			"description":     course.Description,
+			"category":        course.Category,
 			"instructor":      course.Instructor,
 			"duration":        course.Duration,
 			"available_seats": course.AvailableSeats,
@@ -491,18 +543,25 @@ func publishToRabbitMQ(course Course) {
 		return
 	}
 
+	// Add debug logging
+	log.Printf("Publishing course update to RabbitMQ: %s", string(body))
+
 	err = ch.Publish(
-		"",           // exchange
-		q.Name,       // routing key
-		false,        // mandatory
-		false,        // immediate
-		amqp091.Publishing{
-			ContentType: "application/json",
-			Body:        body,
-		})
+		"",     // exchange
+		q.Name, // routing key
+		false,  // mandatory
+		false,  // immediate
+			amqp091.Publishing{
+				DeliveryMode: amqp091.Persistent,
+				ContentType:  "application/json",
+				Body:        body,
+			})
 	if err != nil {
 		log.Printf("Failed to publish message: %v", err)
+		return
 	}
+
+	log.Printf("Successfully published course update for ID: %s", course.ID.Hex())
 }
 
 func CheckAvailability(client *mongo.Client, w http.ResponseWriter, r *http.Request) {
@@ -544,4 +603,83 @@ func CheckAvailability(client *mongo.Client, w http.ResponseWriter, r *http.Requ
 	}
 
 	jsonResponse(w, http.StatusOK, availableCourses)
+}
+
+func publishDeleteEvent(courseID primitive.ObjectID) {
+	// Connect to RabbitMQ
+	conn, err := amqp091.Dial(os.Getenv("RABBITMQ_URI"))
+	if err != nil {
+		log.Printf("Failed to connect to RabbitMQ: %v", err)
+		return
+	}
+	defer conn.Close()
+
+	ch, err := conn.Channel()
+	if err != nil {
+		log.Printf("Failed to open channel: %v", err)
+		return
+	}
+	defer ch.Close()
+
+	q, err := ch.QueueDeclare(
+		"course_updates", // name
+		true,            // durable
+		false,           // delete when unused
+		false,           // exclusive
+		false,           // no-wait
+		nil,            // arguments
+	)
+	if err != nil {
+		log.Printf("Failed to declare queue: %v", err)
+		return
+	}
+
+	event := map[string]interface{}{
+		"action": "delete",
+		"course": map[string]interface{}{
+			"id": courseID.Hex(),
+		},
+	}
+
+	body, err := json.Marshal(event)
+	if err != nil {
+		log.Printf("Failed to marshal event: %v", err)
+		return
+	}
+
+	err = ch.Publish(
+		"",     // exchange
+		q.Name, // routing key
+		false,  // mandatory
+		false,  // immediate
+		amqp091.Publishing{
+			ContentType: "application/json",
+			Body:        body,
+		})
+	if err != nil {
+		log.Printf("Failed to publish message: %v", err)
+	}
+}
+
+func checkSolrCourse(courseID string) bool {
+	solrURL := fmt.Sprintf("http://solr:8983/solr/courses/select?q=id:%s&wt=json", url.QueryEscape(courseID))
+	resp, err := http.Get(solrURL)
+	if err != nil {
+		log.Printf("Error querying SolR: %v", err)
+		return false
+	}
+	defer resp.Body.Close()
+
+	var solrResponse struct {
+		Response struct {
+			NumFound int `json:"numFound"`
+		} `json:"response"`
+	}
+
+	if err := json.NewDecoder(resp.Body).Decode(&solrResponse); err != nil {
+		log.Printf("Error decoding SolR response: %v", err)
+		return false
+	}
+
+	return solrResponse.Response.NumFound > 0
 }

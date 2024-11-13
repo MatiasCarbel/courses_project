@@ -10,6 +10,8 @@ import { useState } from "react";
 export default function CourseCard({ course, enrolled }: { course: CourseType, enrolled?: boolean }) {
   const [src, setSrc] = useState<string>(course.ImageURL ?? "/placeholder.svg")
 
+  const courseId = course.id || course.course_id;
+
   return (
     <div className="bg-white rounded-lg shadow-md overflow-hidden flex flex-col">
       <div className="relative">
@@ -36,7 +38,7 @@ export default function CourseCard({ course, enrolled }: { course: CourseType, e
             <Badge>{course.category}</Badge>
           </div>
         </div>
-        <Link href={`/course/${course.course_id}`}>
+        <Link href={`/course/${courseId}`}>
           <Button variant={enrolled ? "outline" : "default"} className="w-full">{"View Course"}</Button>
         </Link>
       </div>

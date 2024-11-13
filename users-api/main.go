@@ -56,7 +56,7 @@ func main() {
         handlers.DeleteUser(db, w, r) // Ruta protegida con JWT
     }).Methods("DELETE")
 
-    r.HandleFunc("/login", func(w http.ResponseWriter, r *http.Request) {
+    r.HandleFunc("/user/login", func(w http.ResponseWriter, r *http.Request) {
         handlers.LoginUser(db, w, r)
     }).Methods("POST")
 

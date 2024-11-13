@@ -11,56 +11,64 @@ import { useRouter } from "next/navigation";
 import routes from "@/lib/routes";
 
 export default function Component() {
-  const [Email, setEmail] = useState("");
-  const [Password, setPassword] = useState("");
-  const [PasswordVerification, setPasswordVerification] = useState("");
-  const [Username, setUsername] = useState("");
-  const [FirstName, setFirstName] = useState("");
-  const [LastName, setLastName] = useState("");
-  const [UserType, setUserType] = useState(false);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [passwordVerification, setPasswordVerification] = useState("");
+  const [username, setUsername] = useState("");
+  const [error, setError] = useState("");
   const router = useRouter();
 
   const handleSubmit = async () => {
-    // check that Email is well formated.
-    if (!Email.includes("@") && !Email.includes(".")) {
-      console.error("Invalid Email");
+    setError("");
+
+    // check that email is well formatted.
+    if (!email.includes("@") || !email.includes(".")) {
+      setError("Invalid email format");
       return;
     }
 
-    // check that Password is at least 8 characters long.
-    if (Password.length < 8) {
-      console.error("Password must be at least 8 characters long");
+    // check that password is at least 8 characters long.
+    if (password.length < 8) {
+      setError("Password must be at least 8 characters long");
       return;
     }
 
     // Check that both passwords match
-    if (Password !== PasswordVerification) {
-      console.error("Passwords do not match");
+    if (password !== passwordVerification) {
+      setError("Passwords do not match");
       return;
     }
 
-    // Check name, lastname and username are not empty.
-    if (FirstName === "" || LastName === "" || Username === "") {
-      console.error("Name, lastname and username cannot be empty");
+    // Check username is not empty
+    if (username.trim() === "") {
+      setError("Username cannot be empty");
       return;
     }
 
-    // Handle login logic here
-    const response = await fetch("/api/auth/register", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ Email, PasswordHash: Password, Username, FirstName, LastName, UserType }),
-    });
+    try {
+      const response = await fetch("/api/auth/register", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          username,
+          email,
+          password,
+        }),
+      });
 
-    const responseJson = await response.json();
-    console.log(responseJson);
+      const data = await response.json();
 
-    if (response.ok) {
+      if (!response.ok) {
+        setError(data.message || "Registration failed");
+        return;
+      }
+
+      // If successful, redirect to login
       router.push(routes.login);
-    } else {
-      console.error("Invalid Register");
+    } catch (err) {
+      setError("An error occurred during registration");
     }
   };
 
@@ -78,64 +86,71 @@ export default function Component() {
           <CardDescription>Enter your details to create a new account.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="flex items-center justify-between">
-            <div className="space-y-2">
-              <Label htmlFor="name">
-                Name
-              </Label>
-              <Input id="name" placeholder="John" required value={FirstName} onChange={e => setFirstName(e.target.value)} type="text" />
+          {error && (
+            <div className="p-3 text-sm text-red-500 bg-red-50 rounded-md">
+              {error}
             </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="name">
-                Lastname
-              </Label>
-              <Input id="name" placeholder="Doe" required value={LastName} onChange={e => setLastName(e.target.value)} type="text" />
-            </div>
+          )}
+          <div className="space-y-2">
+            <Label htmlFor="username">Username</Label>
+            <Input
+              id="username"
+              placeholder="johndoe"
+              required
+              value={username}
+              onChange={e => setUsername(e.target.value)}
+            />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="name">
-              Username
-            </Label>
-            <Input id="name" placeholder="Johny" required value={Username} onChange={e => setUsername(e.target.value)} type="text" />
+            <Label htmlFor="email">Email</Label>
+            <Input
+              id="email"
+              placeholder="john@example.com"
+              required
+              value={email}
+              onChange={e => setEmail(e.target.value)}
+              type="email"
+            />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="email">
-              Email
-            </Label>
-            <Input id="email" placeholder="m@example.com" required value={Email} onChange={e => setEmail(e.target.value)} type="email" />
+            <Label htmlFor="password">Password</Label>
+            <Input
+              id="password"
+              required
+              value={password}
+              onChange={e => setPassword(e.target.value)}
+              type="password"
+            />
           </div>
           <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <Label htmlFor="password">
-                Password
-              </Label>
-            </div>
-            <Input id="password" required value={Password} onChange={e => setPassword(e.target.value)} type="password" />
-          </div>
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <Label htmlFor="confirm-password">
-                Confirm Password
-              </Label>
-            </div>
-            <Input id="confirm-password" required value={PasswordVerification} onChange={e => setPasswordVerification(e.target.value)} type="password" />
+            <Label htmlFor="confirm-password">Confirm Password</Label>
+            <Input
+              id="confirm-password"
+              required
+              value={passwordVerification}
+              onChange={e => setPasswordVerification(e.target.value)}
+              type="password"
+            />
           </div>
         </CardContent>
         <CardFooter className="grid gap-2">
-          <Button className="w-full bg-[rgb(159,51,233)] text-white hover:bg-[rgb(159,51,233)]/90" type="submit" onClick={handleSubmit}>
+          <Button
+            className="w-full bg-[rgb(159,51,233)] text-white hover:bg-[rgb(159,51,233)]/90"
+            onClick={handleSubmit}
+            type="button"
+          >
             Register
           </Button>
           <Link href="/login">
             <Button
-              className="w-full border-[rgb(159,51,233)] text-[rgb(159,51,233)] hover:bg-[rgb(159,51,233)]/10 hover:text-[rgb(159,51,233)]"
+              className="w-full border-[rgb(159,51,233)] text-[rgb(159,51,233)] hover:text-[rgb(159,51,233)] hover:bg-[rgb(159,51,233)]/10"
               variant="outline"
             >
-              Sign In
+              Login
             </Button>
           </Link>
         </CardFooter>
       </Card>
     </div>
-  )
+  );
 }

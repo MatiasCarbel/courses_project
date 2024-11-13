@@ -3,7 +3,7 @@ import { jwtDecode } from "jwt-decode";
 import { NextRequest, NextResponse } from "next/server";
 
 export async function GET(request: NextRequest) {
-  const baseUrl = process.env.NEXT_PUBLIC_BASE_API_URL ?? "";
+  const baseUrl = process.env.NEXT_PUBLIC_USERS_API_URL ?? "";
 
   const cookie = formatCookies();
   const cookieValue = getCookieValue();

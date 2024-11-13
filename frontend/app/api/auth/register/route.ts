@@ -2,28 +2,41 @@ import { NextResponse } from "next/server";
 
 export async function POST(request: Request) {
   const data = await request.json();
-  const { Email, PasswordHash, Username, FirstName, LastName, UserType } = data;
+  const { username, email, password } = data;
 
-  const baseUrl = process.env.NEXT_PUBLIC_BASE_API_URL ?? "";
+  const baseUrl =
+    process.env.NEXT_PUBLIC_USERS_API_URL ?? "http://users-api:8001";
 
-  const usersReq = await fetch(`${baseUrl}/user/register`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      email: Email,
-      password_hash: PasswordHash,
-      username: Username,
-      name: FirstName,
-      last_name: LastName,
-      usertype: UserType,
-    }),
-  });
+  try {
+    const usersReq = await fetch(`${baseUrl}/user/register`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        username,
+        email,
+        password,
+      }),
+    });
 
-  const usersJson = await usersReq.json();
-  if (usersJson.error)
-    return NextResponse.json({ message: usersJson.error }, { status: 401 });
+    if (!usersReq.ok) {
+      const errorData = await usersReq.json();
+      return NextResponse.json(
+        { message: errorData.error || "Registration failed" },
+        { status: usersReq.status }
+      );
+    }
 
-  return NextResponse.json({ message: "Created." }, { status: 200 });
+    return NextResponse.json(
+      { message: "User created successfully" },
+      { status: 200 }
+    );
+  } catch (error) {
+    console.error("Registration error:", error);
+    return NextResponse.json(
+      { message: "An error occurred during registration" },
+      { status: 500 }
+    );
+  }
 }

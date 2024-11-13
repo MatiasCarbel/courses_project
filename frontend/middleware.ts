@@ -10,12 +10,13 @@ export async function middleware(request: NextRequest) {
 
   if (cookieValue !== "") {
     const decoded = jwtDecode(cookieValue ?? "");
+    const exp = (decoded as any)?.RegisteredClaims?.exp;
 
-    // Check expiration time against current itme.
-    if ((decoded?.exp ?? 0) * 1000 < Date.now()) {
-      isAuthenticated = false;
-    } else {
+    // Check expiration time against current time
+    if (exp && exp * 1000 > Date.now()) {
       isAuthenticated = true;
+    } else {
+      isAuthenticated = false;
     }
   }
 
@@ -42,9 +43,7 @@ export async function middleware(request: NextRequest) {
   // Auth-required pages for unauthenticated users
   if (
     !isAuthenticated &&
-    [routes.myCourses, routes.course].some((route) =>
-      url.pathname.includes(route)
-    )
+    [routes.myCourses].some((route) => url.pathname === route)
   ) {
     return NextResponse.redirect(new URL(routes.login, request.url));
   }

@@ -25,7 +25,7 @@ export async function GET(request: Request) {
   }
 
   const baseUrl =
-    process.env.NEXT_PUBLIC_BASE_API_URL ?? "http://users-api:8001";
+    process.env.NEXT_PUBLIC_USERS_API_URL ?? "http://users-api:8001";
 
   console.log("baseUrl: ", baseUrl);
   console.log("userId: ", userId);

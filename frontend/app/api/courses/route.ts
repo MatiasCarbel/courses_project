@@ -6,7 +6,7 @@ export async function GET(request: NextRequest) {
   const category = searchParams.get("category") || "";
 
   const baseUrl =
-    process.env.NEXT_PUBLIC_BASE_API_URL ?? "http://search-api:8003";
+    process.env.NEXT_PUBLIC_SEARCH_API_URL ?? "http://search-api:8003";
 
   try {
     const searchUrl = `${baseUrl}/search?q=${encodeURIComponent(
@@ -22,8 +22,6 @@ export async function GET(request: NextRequest) {
         Accept: "application/json",
       },
     });
-
-    console.log("coursesReq: ", coursesReq);
 
     if (!coursesReq.ok) {
       throw new Error(`Failed to fetch courses: ${coursesReq.statusText}`);

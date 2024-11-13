@@ -6,10 +6,12 @@ export async function POST(request: Request) {
   const { email, password } = data;
 
   const baseUrl =
-    process.env.NEXT_PUBLIC_BASE_API_URL ?? "http://users-api:8001";
+    process.env.NEXT_PUBLIC_USERS_API_URL ?? "http://users-api:8001";
 
   try {
-    const loginReq = await fetch(`${baseUrl}/login`, {
+    console.log("url: ", `${baseUrl}/user/login`);
+
+    const loginReq = await fetch(`${baseUrl}/user/login`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -17,6 +19,8 @@ export async function POST(request: Request) {
       body: JSON.stringify({ email, password }),
       credentials: "include",
     });
+
+    console.log("loginReq: ", loginReq);
 
     if (!loginReq.ok) {
       const errorText = await loginReq.text();
