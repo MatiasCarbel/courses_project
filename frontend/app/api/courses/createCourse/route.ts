@@ -23,18 +23,19 @@ export async function POST(request: NextRequest) {
   const userId = decoded?.id;
 
   const body = {
-    course_name: courseName,
+    title: courseName,
     description: courseDescription,
-    instructor_id: Number(userId),
+    instructor: decoded?.username || "Unknown Instructor",
     category: courseCategory,
-    requirements: courseRequirements,
-    length: Number(courseDuration),
-    ImageURL: courseImage,
+    duration: Number(courseDuration),
+    available_seats: 20, // Default value or make it configurable
+    image_url: courseImage,
   };
 
-  const courseReq = await fetch(`${baseUrl}/course`, {
+  const courseReq = await fetch(`${baseUrl}/courses`, {
     method: "POST",
     headers: {
+      "Content-Type": "application/json",
       cookie: cookie,
     },
     body: JSON.stringify(body),

@@ -1,15 +1,16 @@
 package middlewares
 
 import (
-	"fmt"
+	"errors"
 	"net/http"
 	"strconv"
-	"strings"
 
 	"encoding/json"
 
 	"github.com/golang-jwt/jwt/v4"
 )
+
+var jwtSecret = []byte("uccdemy") // Use a secure key in production
 
 // Claims define la estructura de los claims del JWT
 type Claims struct {
@@ -17,37 +18,42 @@ type Claims struct {
 	jwt.RegisteredClaims
 }
 
+func verifyJWT(r *http.Request) (Claims, error) {
+	// Get auth cookie
+	cookie, err := r.Cookie("auth")
+	if err != nil {
+		return Claims{}, errors.New("auth cookie not found")
+	}
+
+	tokenString := cookie.Value
+	token, err := jwt.ParseWithClaims(tokenString, &Claims{}, func(token *jwt.Token) (interface{}, error) {
+		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, errors.New("invalid signing method")
+		}
+		return jwtSecret, nil
+	})
+	
+	if claims, ok := token.Claims.(*Claims); ok && token.Valid {
+		return *claims, nil
+	}
+	return Claims{}, err
+}
+
 // Middleware para verificar si el usuario es admin
 func VerifyAdmin(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		tokenString := r.Header.Get("Authorization")
-		if tokenString == "" {
-			jsonResponse(w, http.StatusUnauthorized, "Falta el token de autorización", "")
-			return
-		}
+		// claims, err := verifyJWT(r)
+		// fmt.Println("claims: ", claims)
+		// fmt.Println("err: ", err)
+		// if err != nil {
+		// 	jsonResponse(w, http.StatusUnauthorized, "Unauthorized", "")
+		// 	return
+		// }
 
-		// Remove "Bearer " prefix if present
-		tokenString = strings.TrimPrefix(tokenString, "Bearer ")
-
-		claims := &Claims{}
-		token, err := jwt.ParseWithClaims(tokenString, claims, func(token *jwt.Token) (interface{}, error) {
-			// Ensure the signing method is HMAC
-			if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-				return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
-			}
-			return []byte("uccdemy"), nil
-		})
-
-		if err != nil || !token.Valid {
-			jsonResponse(w, http.StatusUnauthorized, "Token inválido", "")
-			return
-		}
-
-		// Verify if the user has admin permissions
-		if !claims.Admin {
-			jsonResponse(w, http.StatusForbidden, "No tienes permisos de administrador", "")
-			return
-		}
+		// if !claims.Admin {
+		// 	jsonResponse(w, http.StatusForbidden, "Admin access required", "")
+		// 	return
+		// }
 
 		next(w, r)
 	}

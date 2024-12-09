@@ -19,7 +19,9 @@ export default function Component() {
     try {
       const res = await fetch(`/api/courses?name=${searchTerm}&category=${categoryFilter}`)
       const data = await res.json()
-      setCourses(data?.courses || [])
+      if (data?.courses) {
+        setCourses(data?.courses)
+      }
     } catch (error) {
       console.error('Error fetching courses:', error)
     } finally {
@@ -68,7 +70,7 @@ export default function Component() {
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
           {courses.map((course) => (
-            <CourseCard key={course.course_id} course={course} />
+            <CourseCard key={course.id} course={course} />
           ))}
           {courses.length === 0 && !isLoading && (
             <div className="col-span-full text-center py-8 text-gray-500">

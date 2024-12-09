@@ -18,6 +18,12 @@ export async function middleware(request: NextRequest) {
     } else {
       isAuthenticated = false;
     }
+
+    console.log("isAuthenticated:", isAuthenticated);
+    console.log("URL:", url.pathname);
+    console.log("Cookie:", cookieValue);
+    console.log("Decoded:", decoded);
+    console.log("Exp:", exp);
   }
 
   // Handle public or static content early

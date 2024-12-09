@@ -1,8 +1,5 @@
 "use client";
-import { Input } from "@/components/ui/input"
-import { Button } from "@/components/ui/button"
-import { DropdownMenuTrigger, DropdownMenuContent, DropdownMenu, DropdownMenuRadioGroup, DropdownMenuRadioItem } from "@/components/ui/dropdown-menu"
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useState } from "react"
 import { CourseType } from "@/lib/types";
 import CourseCard from "@/components/CourseCard/CourseCard.components";
 
@@ -23,8 +20,15 @@ export default function Component() {
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
         {
           courses?.map((course) => (
-            <CourseCard enrolled={true} key={course.course_id} course={course} />
+            <CourseCard enrolled={true} key={course.id} course={course} />
           ))
+        }
+        {
+          courses?.length === 0 && (
+            <div className="col-span-1">
+              <p className="text-center text-gray-500">No courses found</p>
+            </div>
+          )
         }
       </div>
     </main>

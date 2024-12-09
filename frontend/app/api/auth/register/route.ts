@@ -8,7 +8,7 @@ export async function POST(request: Request) {
     process.env.NEXT_PUBLIC_USERS_API_URL ?? "http://users-api:8001";
 
   try {
-    const usersReq = await fetch(`${baseUrl}/user/register`, {
+    const usersReq = await fetch(`${baseUrl}/users`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",

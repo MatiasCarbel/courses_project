@@ -1,16 +1,12 @@
 export type CourseType = {
   id?: string;
-  course_id?: number;
-  course_name: string;
+  title: string;
   description: string;
-  instructor_id: number;
-  instructor_name: string;
+  instructor: string;
   category: string;
-  requirements: string;
-  length: number;
-  ImageURL: string;
-  CreationTime: string;
-  LastUpdated: string;
+  duration: number;
+  available_seats: number;
+  image_url: string;
   is_subscribed: boolean;
 };
 

@@ -8,9 +8,9 @@ import { CourseType } from "@/lib/types";
 import { useState } from "react";
 
 export default function CourseCard({ course, enrolled }: { course: CourseType, enrolled?: boolean }) {
-  const [src, setSrc] = useState<string>(course.ImageURL ?? "/placeholder.svg")
+  const [src, setSrc] = useState<string>(course.image_url ?? "/placeholder.svg")
 
-  const courseId = course.id || course.course_id;
+  const courseId = course.id;
 
   return (
     <div className="bg-white rounded-lg shadow-md overflow-hidden flex flex-col">
@@ -32,7 +32,7 @@ export default function CourseCard({ course, enrolled }: { course: CourseType, e
       </div>
       <div className="p-4 flex flex-col justify-between h-max">
         <div>
-          <h3 className="text-lg font-semibold mb-2">{course.course_name}</h3>
+          <h3 className="text-lg font-semibold mb-2">{course.title}</h3>
           <p className="text-gray-500 line-clamp-2 mb-4">{course.description}</p>
           <div className="flex gap-2 mb-4 overflow-x-auto scrollbar-none whitespace-nowrap">
             <Badge>{course.category}</Badge>

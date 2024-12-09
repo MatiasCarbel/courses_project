@@ -11,6 +11,7 @@
     <field name="duration" type="pint" indexed="true" stored="true"/>
     <field name="available_seats" type="pint" indexed="true" stored="true"/>
     <field name="category" type="string" indexed="true" stored="true"/>
+    <field name="image_url" type="string" indexed="true" stored="true"/>
     
     <fieldType name="string" class="solr.StrField" sortMissingLast="true"/>
     <fieldType name="pint" class="solr.IntPointField"/>

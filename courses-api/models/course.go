@@ -11,4 +11,5 @@ type Course struct {
     Instructor     string            `bson:"instructor" json:"instructor"`
     Duration       int               `bson:"duration" json:"duration"`
     AvailableSeats int              `bson:"available_seats" json:"available_seats"`
+    ImageURL       string            `bson:"image_url" json:"image_url"`
 }

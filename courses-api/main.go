@@ -88,6 +88,10 @@ func main() {
 		handlers.CheckEnrollment(client, w, r)
 	}).Methods("GET")
 
+	r.HandleFunc("/user/courses/{user_id}", func(w http.ResponseWriter, r *http.Request) {
+		handlers.GetUserCourses(client, w, r)
+	}).Methods("GET")
+
 	// Iniciar el servidor
 	log.Println("Servidor iniciado en el puerto 8002")
 	log.Fatal(http.ListenAndServe(":8002", r))

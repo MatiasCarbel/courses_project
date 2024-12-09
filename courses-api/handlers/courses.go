@@ -9,7 +9,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
-	"strings"
+	"strconv"
 	"sync"
 	"time"
 
@@ -40,6 +40,7 @@ type Course struct {
 	Duration       int               `bson:"duration" json:"duration"`
 	AvailableSeats int              `bson:"available_seats" json:"available_seats"`
 	Category       string            `bson:"category" json:"category"`
+	ImageURL       string            `bson:"image_url" json:"image_url"`
 }
 
 // Enrollment representa la estructura de una inscripción
@@ -58,9 +59,11 @@ func CreateCourse(client *mongo.Client, w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	if course.Title == "" || course.Description == "" || course.Instructor == "" || course.Duration <= 0 || course.AvailableSeats <= 0 || course.Category == "" {
+	if course.Title == "" || course.Description == "" || course.Instructor == "" || 
+	   course.Duration <= 0 || course.AvailableSeats <= 0 || course.Category == "" || 
+	   course.ImageURL == "" {
 		jsonResponse(w, http.StatusBadRequest, map[string]string{
-			"error": "All fields are required (title, description, instructor, duration, available_seats, category) and numeric values must be greater than 0"})
+			"error": "All fields are required (title, description, instructor, duration, available_seats, category, image_url) and numeric values must be greater than 0"})
 		return
 	}
 
@@ -285,17 +288,20 @@ func jsonResponse(w http.ResponseWriter, status int, data interface{}) {
 }
 
 func verifyJWT(r *http.Request) (Claims, error) {
-	authHeader := r.Header.Get("Authorization")
-	if authHeader == "" {
-		return Claims{}, errors.New("token not provided")
+	// Get auth cookie
+	cookie, err := r.Cookie("auth")
+	if err != nil {
+		return Claims{}, errors.New("auth cookie not found")
 	}
-	tokenString := strings.TrimPrefix(authHeader, "Bearer ")
+
+	tokenString := cookie.Value
 	token, err := jwt.ParseWithClaims(tokenString, &Claims{}, func(token *jwt.Token) (interface{}, error) {
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, errors.New("invalid signing method")
 		}
 		return jwtSecret, nil
 	})
+	
 	if claims, ok := token.Claims.(*Claims); ok && token.Valid {
 		return *claims, nil
 	}
@@ -428,6 +434,7 @@ func CalculateAvailability(client *mongo.Client, w http.ResponseWriter, r *http.
 	availability := make(map[primitive.ObjectID]int)
 	mu := sync.Mutex{}
 
+	// TODO: Implement canals.
 	for _, courseID := range courseIDs {
 		wg.Add(1)
 		go func(id primitive.ObjectID) {
@@ -534,6 +541,7 @@ func publishToRabbitMQ(course Course) {
 			"instructor":      course.Instructor,
 			"duration":        course.Duration,
 			"available_seats": course.AvailableSeats,
+			"image_url":       course.ImageURL,
 		},
 	}
 
@@ -682,4 +690,75 @@ func checkSolrCourse(courseID string) bool {
 	}
 
 	return solrResponse.Response.NumFound > 0
+}
+
+// GetUserCourses retrieves all courses that a user is enrolled in
+func GetUserCourses(client *mongo.Client, w http.ResponseWriter, r *http.Request) {
+	// Extract user ID from URL parameters
+	vars := mux.Vars(r)
+	userID, err := strconv.Atoi(vars["user_id"])
+	if err != nil {
+		jsonResponse(w, http.StatusBadRequest, map[string]string{"error": "Invalid user ID"})
+		return
+	}
+
+	// Verify JWT token
+	claims, err := verifyJWT(r)
+	if err != nil {
+		jsonResponse(w, http.StatusUnauthorized, map[string]string{"error": "Unauthorized: " + err.Error()})
+		return
+	}
+
+	// Ensure the requesting user matches the user_id in the URL
+	if claims.UserID != userID {
+		jsonResponse(w, http.StatusForbidden, map[string]string{"error": "Forbidden: Cannot access other user's courses"})
+		return
+	}
+
+	// First get all enrollments for the user
+	enrollmentsCollection := client.Database("coursesdb").Collection("enrollments")
+	coursesCollection := client.Database("coursesdb").Collection("courses")
+	ctx := context.Background()
+
+	// Find all enrollments for the user
+	cursor, err := enrollmentsCollection.Find(ctx, bson.M{"userid": userID})
+	if err != nil {
+		jsonResponse(w, http.StatusInternalServerError, map[string]string{"error": "Error finding enrollments"})
+		return
+	}
+	defer cursor.Close(ctx)
+
+	var enrollments []Enrollment
+	if err = cursor.All(ctx, &enrollments); err != nil {
+		jsonResponse(w, http.StatusInternalServerError, map[string]string{"error": "Error decoding enrollments"})
+		return
+	}
+
+	// Get all course IDs from enrollments
+	var courseIDs []primitive.ObjectID
+	for _, enrollment := range enrollments {
+		courseIDs = append(courseIDs, enrollment.CourseID)
+	}
+
+	// If user has no enrollments, return empty array
+	if len(courseIDs) == 0 {
+		jsonResponse(w, http.StatusOK, map[string]interface{}{"results": []Course{}})
+		return
+	}
+
+	// Find all courses that match the course IDs
+	cursor, err = coursesCollection.Find(ctx, bson.M{"_id": bson.M{"$in": courseIDs}})
+	if err != nil {
+		jsonResponse(w, http.StatusInternalServerError, map[string]string{"error": "Error finding courses"})
+		return
+	}
+	defer cursor.Close(ctx)
+
+	var courses []Course
+	if err = cursor.All(ctx, &courses); err != nil {
+		jsonResponse(w, http.StatusInternalServerError, map[string]string{"error": "Error decoding courses"})
+		return
+	}
+
+	jsonResponse(w, http.StatusOK, map[string]interface{}{"results": courses})
 }

@@ -18,7 +18,7 @@ export default function Component({ params }: { params: { slug: string } }) {
       .then((res) => res.json())
       .then((data) => {
         setCourse(data?.course)
-        setSrc(data?.course?.ImageURL ?? "/placeholder.svg")
+        setSrc(data?.course?.image_url ?? "/placeholder.svg")
       })
   }, [])
 
@@ -37,7 +37,7 @@ export default function Component({ params }: { params: { slug: string } }) {
             <div className="space-y-4">
               <div className="inline-block rounded-lg bg-muted px-3 py-1 text-sm">Congratulations!</div>
               <h1 className="text-3xl font-bold tracking-tighter sm:text-4xl md:text-5xl">
-                You&#39;ve enrolled in {course?.course_name ?? "Course Name"}
+                You&#39;ve enrolled in {course?.title ?? "Course Name"}
               </h1>
               <p className="max-w-[600px] text-muted-foreground md:text-xl/relaxed lg:text-base/relaxed xl:text-xl/relaxed">
                 We&#39;re excited to have you join our program.

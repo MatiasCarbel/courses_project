@@ -24,6 +24,7 @@ type Course struct {
 	Duration       int    `json:"duration"`
 	AvailableSeats int    `json:"available_seats"`
 	Category       string `json:"category"`
+	ImageURL       string `json:"image_url"`
 }
 
 func main() {
@@ -114,6 +115,7 @@ func consumeRabbitMQMessages(conn *amqp.Connection) {
 									Duration:       int(courseData["duration"].(float64)),
 									AvailableSeats: int(courseData["available_seats"].(float64)),
 									Category:       courseData["category"].(string),
+									ImageURL:       courseData["image_url"].(string),
 							}
 							updateSolR(course)
 							log.Printf("Course %s updated in Solr", course.ID)
@@ -174,6 +176,7 @@ func updateSolR(course Course) {
 				"instructor":     course.Instructor,
 				"duration":       course.Duration,
 				"available_seats": course.AvailableSeats,
+				"image_url":     course.ImageURL,
 			},
 		},
 	}

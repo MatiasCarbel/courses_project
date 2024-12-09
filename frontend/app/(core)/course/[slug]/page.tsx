@@ -26,12 +26,14 @@ export default function Course({ params }: { params: { slug: string } }) {
 
   const updateCourses = () => {
     console.log(params?.slug)
-    fetch(`/api/courses/${params?.slug}`)
+    fetch(`/api/courses/courseId?courseId=${params?.slug}`)
       .then((res) => res.json())
       .then((data) => {
+        console.log(data);
         setCourse(data?.course);
-        setComments(data?.comments.slice(0, 4));
-        setSrc(data?.course?.ImageURL ?? "/placeholder.svg");
+        // setComments(data?.comments.slice(0, 4));
+        console.log(data?.course?.image_url);
+        setSrc(data?.course?.image_url ?? "/placeholder.svg");
       });
   };
 
@@ -143,20 +145,16 @@ export default function Course({ params }: { params: { slug: string } }) {
           width={800}
         />
         <div className="grid gap-4">
-          <h1 className="text-3xl font-bold">{course?.course_name}</h1>
+          <h1 className="text-3xl font-bold">{course?.title}</h1>
           <div className="grid gap-2">
             <p className="text-gray-500 dark:text-gray-400">{course?.description}</p>
             <div className="flex items-center gap-2">
               <UserIcon className="w-5 h-5 fill-muted stroke-muted-foreground" />
-              <span className="text-sm text-gray-500 dark:text-gray-400">Instructor: {course?.instructor_name}</span>
+              <span className="text-sm text-gray-500 dark:text-gray-400">Instructor: {course?.instructor}</span>
             </div>
             <div className="flex items-center gap-2">
               <ClockIcon className="w-5 h-5 fill-muted stroke-muted-foreground" />
-              <span className="text-sm text-gray-500 dark:text-gray-400">{course?.length} hours of video</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <CalendarIcon className="w-5 h-5 fill-muted stroke-muted-foreground" />
-              <span className="text-sm text-gray-500 dark:text-gray-400">Last updated: {formatDate(course?.LastUpdated ?? "")}</span>
+              <span className="text-sm text-gray-500 dark:text-gray-400">{course?.duration} hours of video</span>
             </div>
           </div>
         </div>
