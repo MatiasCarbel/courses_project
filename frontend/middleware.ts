@@ -1,29 +1,43 @@
 import { NextRequest, NextResponse } from "next/server";
-import { jwtDecode } from "jwt-decode";
+import { jwtDecode, JwtPayload } from "jwt-decode";
 import routes from "./lib/routes";
+
+interface UserJwtPayload extends JwtPayload {
+  id: string;
+  username: string;
+  email: string;
+  admin: boolean;
+  RegisteredClaims: {
+    exp: number;
+  };
+}
 
 export async function middleware(request: NextRequest) {
   const url = request.nextUrl.clone();
-  const cookie = request.cookies.get("auth");
+  const cookie = request.cookies.get("token");
   const cookieValue = cookie?.value ?? "";
   let isAuthenticated = false;
 
   if (cookieValue !== "") {
-    const decoded = jwtDecode(cookieValue ?? "");
-    const exp = (decoded as any)?.RegisteredClaims?.exp;
+    try {
+      const decoded = jwtDecode<UserJwtPayload>(cookieValue);
 
-    // Check expiration time against current time
-    if (exp && exp * 1000 > Date.now()) {
-      isAuthenticated = true;
-    } else {
+      console.log("decoded: ", decoded);
+      console.log("decoded.exp: ", decoded.RegisteredClaims.exp);
+      console.log("Date.now(): ", Date.now());
+      console.log("decoded.exp * 1000: ", decoded.RegisteredClaims.exp * 1000);
+
+      // JWT exp is in seconds, Date.now() is in milliseconds
+      if (
+        decoded.RegisteredClaims.exp &&
+        decoded.RegisteredClaims.exp * 1000 > Date.now()
+      ) {
+        isAuthenticated = true;
+      }
+    } catch (error) {
+      console.error("Error decoding token:", error);
       isAuthenticated = false;
     }
-
-    console.log("isAuthenticated:", isAuthenticated);
-    console.log("URL:", url.pathname);
-    console.log("Cookie:", cookieValue);
-    console.log("Decoded:", decoded);
-    console.log("Exp:", exp);
   }
 
   // Handle public or static content early
@@ -47,9 +61,22 @@ export async function middleware(request: NextRequest) {
   }
 
   // Auth-required pages for unauthenticated users
+  const courseRouteRegex = new RegExp(
+    `^${routes.course.replace(":id", "[^/]+")}$`
+  );
+
+  console.log(
+    "courseRouteRegex.test(url.pathname): ",
+    courseRouteRegex.test(url.pathname)
+  );
+
+  console.log("isAuthenticated: ", isAuthenticated);
+
   if (
     !isAuthenticated &&
-    [routes.myCourses].some((route) => url.pathname === route)
+    [routes.myCourses, routes.course].some(
+      (route) => url.pathname === route || courseRouteRegex.test(url.pathname)
+    )
   ) {
     return NextResponse.redirect(new URL(routes.login, request.url));
   }

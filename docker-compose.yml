@@ -53,12 +53,10 @@ services:
       - "11211:11211"
 
   # Courses API Service
-  courses-api:
-    build: ./courses-api # Path to your Dockerfile for courses-api
-    ports:
-      - "8002:8002" # Expose courses-api on port 8002
+  courses-api-1:
+    build: ./courses-api
     environment:
-      - MONGO_URI=mongodb://mongo:27017/coursesdb # MongoDB connection URI
+      - MONGO_URI=mongodb://mongo:27017/coursesdb
       - RABBITMQ_URI=amqp://guest:guest@rabbitmq:5672/
     depends_on:
       mongo:
@@ -67,6 +65,38 @@ services:
         condition: service_started
     networks:
       - app-network
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+
+  courses-api-2:
+    build: ./courses-api
+    environment:
+      - MONGO_URI=mongodb://mongo:27017/coursesdb
+      - RABBITMQ_URI=amqp://guest:guest@rabbitmq:5672/
+    depends_on:
+      mongo:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_started
+    networks:
+      - app-network
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+
+  courses-api-3:
+    build: ./courses-api
+    environment:
+      - MONGO_URI=mongodb://mongo:27017/coursesdb
+      - RABBITMQ_URI=amqp://guest:guest@rabbitmq:5672/
+    depends_on:
+      mongo:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_started
+    networks:
+      - app-network
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
 
   # MongoDB Service
   mongo:
@@ -133,18 +163,27 @@ services:
     ports:
       - "3000:3000"
     environment:
-      - NEXT_PUBLIC_SEARCH_API_URL=http://search-api:8003
-      - NEXT_PUBLIC_COURSES_API_URL=http://courses-api:8002
       - NEXT_PUBLIC_USERS_API_URL=http://users-api:8001
+      - NEXT_PUBLIC_COURSES_API_URL=http://nginx:80
+      - NEXT_PUBLIC_SEARCH_API_URL=http://search-api:8003
+    depends_on:
+      - nginx # Updated dependency
+      - users-api
+      - search-api
     networks:
       - app-network
+
+  # Nginx Load Balancer
+  nginx:
+    build: ./nginx
+    ports:
+      - "8080:80"
     depends_on:
-      users-api:
-        condition: service_started
-      search-api:
-        condition: service_started
-      courses-api:
-        condition: service_started
+      - courses-api-1
+      - courses-api-2
+      - courses-api-3
+    networks:
+      - app-network
 
 volumes:
   mysql-data:

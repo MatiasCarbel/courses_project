@@ -9,8 +9,6 @@ export async function POST(request: Request) {
     process.env.NEXT_PUBLIC_USERS_API_URL ?? "http://users-api:8001";
 
   try {
-    console.log("url: ", `${baseUrl}/user/login`);
-
     const loginReq = await fetch(`${baseUrl}/user/login`, {
       method: "POST",
       headers: {
@@ -19,8 +17,6 @@ export async function POST(request: Request) {
       body: JSON.stringify({ email, password }),
       credentials: "include",
     });
-
-    console.log("loginReq: ", loginReq);
 
     if (!loginReq.ok) {
       const errorText = await loginReq.text();
@@ -41,9 +37,9 @@ export async function POST(request: Request) {
 
     // Set the cookie from the API response
     response.cookies.set({
-      name: "auth",
+      name: "token",
       value: loginJson.token,
-      httpOnly: true,
+      httpOnly: false,
       secure: process.env.NODE_ENV === "production",
       sameSite: "lax",
       path: "/",

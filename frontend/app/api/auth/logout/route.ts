@@ -9,7 +9,7 @@ export async function GET() {
 
   // Remove the auth cookie
   response.cookies.set({
-    name: "auth",
+    name: "token",
     value: "",
     expires: new Date(0),
     path: "/",

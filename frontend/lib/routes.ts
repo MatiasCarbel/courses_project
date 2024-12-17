@@ -4,7 +4,8 @@ const routes = {
   login: "/login",
   home: "/home",
   myCourses: "/myCourses",
-  course: "/course/",
+  course: "/course/:id",
+  admin: "/admin/services",
 };
 
 export default routes;

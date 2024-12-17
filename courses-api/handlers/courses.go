@@ -10,7 +10,6 @@ import (
 	"net/url"
 	"os"
 	"strconv"
-	"sync"
 	"time"
 
 	"github.com/rabbitmq/amqp091-go"
@@ -309,38 +308,58 @@ func verifyJWT(r *http.Request) (Claims, error) {
 }
 
 func CreateEnrollment(client *mongo.Client, w http.ResponseWriter, r *http.Request) {
+	log.Println("Starting CreateEnrollment process")
+
 	// Extract user ID from JWT
 	claims, err := verifyJWT(r)
 	if err != nil {
+		log.Println("JWT verification failed:", err)
 		jsonResponse(w, http.StatusUnauthorized, map[string]string{"error": "Unauthorized: " + err.Error()})
 		return
 	}
+	log.Println("JWT verified successfully. Claims:", claims)
 
 	var enrollment Enrollment
 	err = json.NewDecoder(r.Body).Decode(&enrollment)
 	if err != nil {
+		log.Println("Failed to decode request body:", err)
 		jsonResponse(w, http.StatusBadRequest, map[string]string{"error": "Invalid request body: " + err.Error()})
+		return
+	}
+	log.Println("Received enrollment data:", enrollment)
+
+	// Validate CourseID is not empty
+	if enrollment.CourseID.IsZero() {
+		log.Println("Course ID is missing in the request")
+		jsonResponse(w, http.StatusBadRequest, map[string]string{"error": "Course ID is required"})
+		return
+	}
+
+	// Validate UserID is not zero
+	if enrollment.UserID == 0 {
+		log.Println("User ID is missing in the request")
+		jsonResponse(w, http.StatusBadRequest, map[string]string{"error": "User ID is required"})
 		return
 	}
 
 	// Set the UserID from the JWT claims
 	enrollment.UserID = claims.UserID
-
-	// log the user id
-	log.Println("UserID:", enrollment.UserID)
-	log.Println("CourseID:", enrollment.CourseID)
+	log.Println("UserID set from JWT claims:", enrollment.UserID)
 
 	collection := client.Database("coursesdb").Collection("enrollments")
 	ctx := context.TODO()
 
 	// Check if the user is already enrolled in the course
 	filter := bson.M{"course_id": enrollment.CourseID, "userid": enrollment.UserID}
+	log.Println("Checking existing enrollment with filter:", filter)
 	count, err := collection.CountDocuments(ctx, filter)
 	if err != nil {
+		log.Println("Error checking enrollment:", err)
 		jsonResponse(w, http.StatusInternalServerError, map[string]string{"error": "Error checking enrollment: " + err.Error()})
 		return
 	}
 	if count > 0 {
+		log.Println("User is already enrolled in this course")
 		jsonResponse(w, http.StatusConflict, map[string]string{"error": "User is already enrolled in this course"})
 		return
 	}
@@ -348,34 +367,46 @@ func CreateEnrollment(client *mongo.Client, w http.ResponseWriter, r *http.Reque
 	// Check for available seats
 	courseCollection := client.Database("coursesdb").Collection("courses")
 	var course Course
+	log.Println("Fetching course details for CourseID:", enrollment.CourseID)
 	err = courseCollection.FindOne(ctx, bson.M{"_id": enrollment.CourseID}).Decode(&course)
 	if err != nil {
+		log.Println("Error fetching course:", err)
 		jsonResponse(w, http.StatusInternalServerError, map[string]string{"error": "Error fetching course: " + err.Error()})
 		return
 	}
+	log.Println("Course details fetched:", course)
 	if course.AvailableSeats <= 0 {
+		log.Println("No seats available for this course")
 		jsonResponse(w, http.StatusConflict, map[string]string{"error": "No seats available for this course"})
 		return
 	}
 
 	// Insert the enrollment
+	log.Println("Inserting enrollment:", enrollment)
 	result, err := collection.InsertOne(ctx, enrollment)
 	if err != nil {
+		log.Println("Error creating enrollment:", err)
 		jsonResponse(w, http.StatusInternalServerError, map[string]string{"error": "Error creating enrollment"})
 		return
 	}
+	log.Println("Enrollment created successfully. Result:", result)
 
 	// Decrease available seats
+	log.Println("Decreasing available seats for CourseID:", enrollment.CourseID)
 	_, err = courseCollection.UpdateOne(ctx, bson.M{"_id": enrollment.CourseID}, bson.M{"$inc": bson.M{"available_seats": -1}})
 	if err != nil {
+		log.Println("Error updating available seats:", err)
 		jsonResponse(w, http.StatusInternalServerError, map[string]string{"error": "Error updating available seats"})
 		return
 	}
+	log.Println("Available seats decreased successfully")
 
 	// Publish the enrollment update to RabbitMQ
+	log.Println("Publishing enrollment update to RabbitMQ for CourseID:", enrollment.CourseID)
 	publishEnrollmentUpdateToRabbitMQ(enrollment.CourseID, -1)
 
 	enrollment.ID = result.InsertedID.(primitive.ObjectID)
+	log.Println("Enrollment process completed successfully. Enrollment ID:", enrollment.ID)
 	jsonResponse(w, http.StatusCreated, enrollment)
 }
 
@@ -420,37 +451,62 @@ func publishEnrollmentUpdateToRabbitMQ(courseID primitive.ObjectID, seatChange i
 }
 
 func CalculateAvailability(client *mongo.Client, w http.ResponseWriter, r *http.Request) {
-	var courseIDs []primitive.ObjectID
-	err := json.NewDecoder(r.Body).Decode(&courseIDs)
-	if err != nil {
+	var courseIDs []string
+	if err := json.NewDecoder(r.Body).Decode(&courseIDs); err != nil {
 		jsonResponse(w, http.StatusBadRequest, map[string]string{"error": "Invalid request body"})
 		return
 	}
 
-	collection := client.Database("coursesdb").Collection("courses")
-	ctx := context.TODO()
-
-	var wg sync.WaitGroup
-	availability := make(map[primitive.ObjectID]int)
-	mu := sync.Mutex{}
-
-	// TODO: Implement canals.
-	for _, courseID := range courseIDs {
-		wg.Add(1)
-		go func(id primitive.ObjectID) {
-			defer wg.Done()
-			var course Course
-			err := collection.FindOne(ctx, bson.M{"_id": id}).Decode(&course)
-			if err != nil {
-				return
-			}
-			mu.Lock()
-			availability[id] = course.AvailableSeats
-			mu.Unlock()
-		}(courseID)
+	// Convert string IDs to ObjectIDs
+	var objectIDs []primitive.ObjectID
+	for _, id := range courseIDs {
+		objectID, err := primitive.ObjectIDFromHex(id)
+		if err != nil {
+			jsonResponse(w, http.StatusBadRequest, map[string]string{"error": "Invalid course ID format"})
+			return
+		}
+		objectIDs = append(objectIDs, objectID)
 	}
 
-	wg.Wait()
+	collection := client.Database("coursesdb").Collection("courses")
+	ctx := context.Background()
+
+	// Create channels for results and errors
+	type result struct {
+		ID    string
+		Seats int
+	}
+	resultsChan := make(chan result, len(objectIDs))
+	errorsChan := make(chan error, len(objectIDs))
+
+	// Launch goroutines for each course
+	for _, id := range objectIDs {
+		go func(courseID primitive.ObjectID) {
+			var course Course
+			err := collection.FindOne(ctx, bson.M{"_id": courseID}).Decode(&course)
+			if err != nil {
+				errorsChan <- err
+				return
+			}
+			resultsChan <- result{
+				ID:    courseID.Hex(),
+				Seats: course.AvailableSeats,
+			}
+		}(id)
+	}
+
+	// Collect results
+	availability := make(map[string]int)
+	for i := 0; i < len(objectIDs); i++ {
+		select {
+		case res := <-resultsChan:
+			availability[res.ID] = res.Seats
+		case err := <-errorsChan:
+			log.Printf("Error fetching course availability: %v", err)
+			// Continue collecting other results
+		}
+	}
+
 	jsonResponse(w, http.StatusOK, availability)
 }
 

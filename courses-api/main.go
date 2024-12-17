@@ -64,7 +64,7 @@ func main() {
 	}).Methods("GET", "OPTIONS")
 
 	r.HandleFunc("/courses/availability", func(w http.ResponseWriter, r *http.Request) {
-		handlers.CheckAvailability(client, w, r)
+		handlers.CalculateAvailability(client, w, r)
 	}).Methods("POST", "OPTIONS")
 
 	// Rutas protegidas por permisos de administrador
@@ -91,6 +91,10 @@ func main() {
 	r.HandleFunc("/user/courses/{user_id}", func(w http.ResponseWriter, r *http.Request) {
 		handlers.GetUserCourses(client, w, r)
 	}).Methods("GET")
+
+	r.HandleFunc("/containers", middlewares.VerifyAdmin(func(w http.ResponseWriter, r *http.Request) {
+		handlers.GetContainers(w, r)
+	})).Methods("GET")
 
 	// Iniciar el servidor
 	log.Println("Servidor iniciado en el puerto 8002")

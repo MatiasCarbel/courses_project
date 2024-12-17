@@ -4,17 +4,25 @@ import { useRouter } from "next/navigation";
 import { useUser } from "@/hooks/useUser";
 import { Button } from "@/components/ui/button";
 import Image from "next/image";
-import CommentCard from "@/components/CommentCard/CommentCard.components";
 import { CardTitle, CardHeader, CardContent, Card } from "@/components/ui/card";
-import { CommentType, CourseType } from "@/lib/types";
+import { CourseType } from "@/lib/types";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 
 export default function Course({ params }: { params: { slug: string } }) {
   const [course, setCourse] = useState<CourseType>();
-  const [comments, setComments] = useState<CommentType[]>([]);
   const [src, setSrc] = useState<string>("/placeholder.svg");
   const [alreadyEnrolled, setAlreadyEnrolled] = useState(false);
-  const { isAdmin } = useUser();
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [isUpdating, setIsUpdating] = useState(false);
+  const [updateTitle, setUpdateTitle] = useState("");
+  const [updateDescription, setUpdateDescription] = useState("");
+  const [updateImage, setUpdateImage] = useState("");
+  const [isUpdateModalOpen, setIsUpdateModalOpen] = useState(false);
   const router = useRouter();
+  const { isAdmin } = useUser();
 
   useEffect(() => {
     setAlreadyEnrolled(course?.is_subscribed ?? false);
@@ -24,110 +32,92 @@ export default function Course({ params }: { params: { slug: string } }) {
     updateCourses();
   }, []);
 
+  useEffect(() => {
+    if (course) {
+      setUpdateTitle(course.title);
+      setUpdateDescription(course.description);
+      setUpdateImage(course.image_url);
+    }
+  }, [course]);
+
   const updateCourses = () => {
-    console.log(params?.slug)
     fetch(`/api/courses/courseId?courseId=${params?.slug}`)
       .then((res) => res.json())
       .then((data) => {
-        console.log(data);
+        console.log("data: ", data);
         setCourse(data?.course);
-        // setComments(data?.comments.slice(0, 4));
-        console.log(data?.course?.image_url);
         setSrc(data?.course?.image_url ?? "/placeholder.svg");
       });
   };
 
-  const uploadResource = async () => {
-    const fileInput = document.createElement("input");
-    fileInput.type = "file";
-    fileInput.accept = "application/pdf";
-    fileInput.click();
+  const handleDelete = async () => {
+    if (!confirm("Are you sure you want to delete this course?")) return;
 
-    fileInput.onchange = async (e) => {
-      const file = (e.target as HTMLInputElement).files?.[0];
-      if (!file) return;
-
-      const formData = new FormData();
-      formData.append("file", file);
-      formData.append("courseId", params?.slug);
-
-      const response = await fetch(`/api/courses/resources`, {
-        method: "POST",
-        body: formData,
+    setIsDeleting(true);
+    try {
+      const response = await fetch(`/api/courses/delete/${params?.slug}`, {
+        method: "DELETE",
       });
 
       if (!response.ok) {
-        alert("Error while uploading resource.");
-        return;
-      }
-      const responseText = await response.text();
-
-      let responseJson;
-      try {
-        responseJson = JSON.parse(responseText);
-      } catch (error) {
-        alert("Error while parsing server response.");
-        return;
+        throw new Error("Failed to delete course");
       }
 
-      if (response.ok) {
-        alert("Resource uploaded successfully.");
-      } else {
-        alert("Error while uploading resource.");
-      }
-    };
-  };
-
-  const downloadResources = async () => {
-    const baseUrl = process.env.NEXT_PUBLIC_USERS_API_URL ?? "";
-    const url = `${baseUrl}/download/${params?.slug}`;
-    console.log(url);
-
-    window.location.href = url;
-    // const resourceReq = await fetch(url);
-    // const resourceJson = await resourceReq.json();
-
-    // console.log(resourceJson);
-
-    // if (!resourceReq.ok) {
-    //   alert("Error while downloading resources.");
-    //   return;
-    // }
-  };
-
-  const addComment = () => {
-    const comment = prompt("Enter your comment:");
-
-    if (comment) {
-      fetch(`/api/courses/comment`, {
-        method: "POST",
-        body: JSON.stringify({ courseId: params?.slug, comment }),
-      })
-        .then((res) => res.json())
-        .then((res) => {
-          updateCourses();
-        });
+      router.push('/home');
+    } catch (error) {
+      console.error("Error deleting course:", error);
+      alert("Failed to delete course");
+    } finally {
+      setIsDeleting(false);
     }
   };
 
-  const formatDate = (date: string) => {
-    return new Date(date).toLocaleDateString();
-  };
-
   const enroll = async () => {
-    if (alreadyEnrolled) return;
+    if (alreadyEnrolled || course?.available_seats === 0) return;
 
     const response = await fetch(`/api/courses/subscribe`, {
       method: "POST",
       body: JSON.stringify({ courseId: params?.slug }),
+    }).then(async (res) => {
+      const data = await res.json();
+      if (res.ok) {
+        router.push(`/success/${params?.slug}`);
+      } else {
+        alert("Error while enrolling to course: " + data?.message);
+      }
+    }).catch((error) => {
+      console.error("Error while enrolling to course: ", error);
     });
+  };
 
-    if (response.ok) {
-      const newCourse = { ...course, is_subscribed: true } as CourseType;
-      setCourse(newCourse);
-      router.push(`/success/${params?.slug}`);
-    } else {
-      alert("Error while enrolling to course.");
+  const handleUpdate = async () => {
+    setIsUpdating(true);
+    try {
+      const response = await fetch(`/api/courses/update/${params?.slug}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          title: updateTitle,
+          description: updateDescription,
+          image_url: updateImage,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || "Failed to update course");
+      }
+
+      setIsUpdateModalOpen(false);
+      updateCourses();
+    } catch (error: any) {
+      console.error("Error updating course:", error);
+      alert(error.message || "Failed to update course");
+    } finally {
+      setIsUpdating(false);
     }
   };
 
@@ -156,52 +146,90 @@ export default function Course({ params }: { params: { slug: string } }) {
               <ClockIcon className="w-5 h-5 fill-muted stroke-muted-foreground" />
               <span className="text-sm text-gray-500 dark:text-gray-400">{course?.duration} hours of video</span>
             </div>
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-gray-500 dark:text-gray-400">Available Seats: {course?.available_seats}</span>
+            </div>
           </div>
         </div>
       </div>
       <div className="grid gap-6">
         <Card>
           <CardHeader>
-            <CardTitle>Comments</CardTitle>
+            <CardTitle>Description</CardTitle>
           </CardHeader>
           <CardContent className="grid gap-4">
-            {comments?.map((comment) => (
-              <CommentCard key={comment.comment_id} comment={comment} />
-            ))}
-            <Button onClick={addComment} variant={"secondary"} size="lg">Add Comment</Button>
+            <p className="text-gray-500 dark:text-gray-400">{course?.description}</p>
           </CardContent>
         </Card>
-        <Button onClick={enroll} variant={!alreadyEnrolled ? "default" : "outline"} disabled={alreadyEnrolled} size="lg">{!alreadyEnrolled ? "Enroll in Course" : "Already Enrolled"}</Button>
-        {alreadyEnrolled && (
-          <Button onClick={downloadResources} variant={"default"} size="lg">Download Course Resources</Button>
-        )}
-        {isAdmin && (
-          <Button onClick={uploadResource} variant={"default"} size="lg">Upload Course Resource</Button>
-        )}
+        <div className="flex gap-4">
+          <Button
+            onClick={enroll}
+            variant={!alreadyEnrolled ? "default" : "outline"}
+            disabled={alreadyEnrolled || course?.available_seats === 0}
+            size="lg"
+            className="flex-1"
+          >
+            {!alreadyEnrolled ? "Enroll in Course" : "Already Enrolled"}
+          </Button>
+          {isAdmin && (
+            <div className="flex gap-4">
+              <Dialog open={isUpdateModalOpen} onOpenChange={setIsUpdateModalOpen}>
+                <DialogTrigger asChild>
+                  <Button variant="outline" size="lg">
+                    Update Course
+                  </Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Update Course</DialogTitle>
+                  </DialogHeader>
+                  <div className="grid gap-4 py-4">
+                    <div className="grid gap-2">
+                      <Label htmlFor="title">Title</Label>
+                      <Input
+                        id="title"
+                        value={updateTitle}
+                        onChange={(e) => setUpdateTitle(e.target.value)}
+                      />
+                    </div>
+                    <div className="grid gap-2">
+                      <Label htmlFor="description">Description</Label>
+                      <Textarea
+                        id="description"
+                        value={updateDescription}
+                        onChange={(e) => setUpdateDescription(e.target.value)}
+                      />
+                    </div>
+                    <div className="grid gap-2">
+                      <Label htmlFor="image">Image URL</Label>
+                      <Input
+                        id="image"
+                        value={updateImage}
+                        onChange={(e) => setUpdateImage(e.target.value)}
+                      />
+                    </div>
+                  </div>
+                  <Button
+                    onClick={handleUpdate}
+                    disabled={isUpdating}
+                  >
+                    {isUpdating ? "Updating..." : "Update Course"}
+                  </Button>
+                </DialogContent>
+              </Dialog>
+              <Button
+                onClick={handleDelete}
+                variant="destructive"
+                disabled={isDeleting}
+                size="lg"
+              >
+                {isDeleting ? "Deleting..." : "Delete Course"}
+              </Button>
+            </div>
+          )}
+        </div>
       </div>
     </div>
-  );
-}
-
-function CalendarIcon(props: React.SVGProps<SVGSVGElement>) {
-  return (
-    <svg
-      {...props}
-      xmlns="http://www.w3.org/2000/svg"
-      width="24"
-      height="24"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <path d="M8 2v4" />
-      <path d="M16 2v4" />
-      <rect width="18" height="18" x="3" y="4" rx="2" />
-      <path d="M3 10h18" />
-    </svg>
   );
 }
 

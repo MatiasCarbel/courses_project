@@ -45,8 +45,6 @@ export default function Login() {
 
       const data = await response.json();
 
-      console.log('data: ', data);
-
       if (!response.ok) {
         setError(data.message || "Invalid credentials");
         return;
@@ -55,7 +53,7 @@ export default function Login() {
       await refreshUser();
       router.push(routes.home);
     } catch (err) {
-      setError("An error occurred. Please try again.");
+      setError("An error occurred. Please try again." + err);
     }
   };
 

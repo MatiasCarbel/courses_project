@@ -100,29 +100,39 @@ func consumeRabbitMQMessages(conn *amqp.Connection) {
 							continue
 					}
 
-					action := event["action"].(string)
-					courseData := event["course"].(map[string]interface{})
-
-					log.Printf("Processing %s action for course ID: %s", action, courseData["id"])
-
-					switch action {
-					case "upsert":
-							course := Course{
-									ID:             courseData["id"].(string),
-									Title:          courseData["title"].(string),
-									Description:    courseData["description"].(string),
-									Instructor:     courseData["instructor"].(string),
-									Duration:       int(courseData["duration"].(float64)),
-									AvailableSeats: int(courseData["available_seats"].(float64)),
-									Category:       courseData["category"].(string),
-									ImageURL:       courseData["image_url"].(string),
+					// Check if this is a seat update message
+					if courseID, ok := event["course_id"].(string); ok {
+							if seatChange, ok := event["seat_change"].(float64); ok {
+									handleSeatUpdate(courseID, int(seatChange))
+									continue
 							}
-							updateSolR(course)
-							log.Printf("Course %s updated in Solr", course.ID)
-					case "delete":
-							courseID := courseData["id"].(string)
-							deleteSolRDocument(courseID)
-							log.Printf("Course %s deleted from Solr", courseID)
+					}
+
+					// If not a seat update, process as a course update/delete
+					if action, ok := event["action"].(string); ok {
+							if courseData, ok := event["course"].(map[string]interface{}); ok {
+									log.Printf("Processing %s action for course ID: %s", action, courseData["id"])
+
+									switch action {
+									case "upsert":
+											course := Course{
+													ID:             courseData["id"].(string),
+													Title:          courseData["title"].(string),
+													Description:    courseData["description"].(string),
+													Instructor:     courseData["instructor"].(string),
+													Duration:       int(courseData["duration"].(float64)),
+													AvailableSeats: int(courseData["available_seats"].(float64)),
+													Category:       courseData["category"].(string),
+													ImageURL:       courseData["image_url"].(string),
+											}
+											updateSolR(course)
+											log.Printf("Course %s updated in Solr", course.ID)
+									case "delete":
+											courseID := courseData["id"].(string)
+											deleteSolRDocument(courseID)
+											log.Printf("Course %s deleted from Solr", courseID)
+									}
+							}
 					}
 			}
 	}()
@@ -224,6 +234,7 @@ func searchHandler(w http.ResponseWriter, r *http.Request) {
 
 	query := r.URL.Query().Get("q")
 	category := r.URL.Query().Get("category")
+	available := r.URL.Query().Get("available") == "true"
 
 	solrURL := os.Getenv("SOLR_URL")
 	if solrURL == "" {
@@ -246,6 +257,10 @@ func searchHandler(w http.ResponseWriter, r *http.Request) {
 	if category != "" {
 		queryParts = append(queryParts, fmt.Sprintf("category:%s", 
 			url.QueryEscape(category)))
+	}
+
+	if available {
+		queryParts = append(queryParts, "available_seats:[1 TO *]")
 	}
 	
 	finalQuery := "*:*"

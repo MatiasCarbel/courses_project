@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { jwtDecode } from "jwt-decode";
 
 export async function POST(request: NextRequest) {
-  const baseUrl = process.env.NEXT_PUBLIC_USERS_API_URL ?? "";
+  const baseUrl = process.env.NEXT_PUBLIC_COURSES_API_URL ?? "";
 
   const data = await request.json();
   const {
@@ -12,45 +12,59 @@ export async function POST(request: NextRequest) {
     courseDescription,
     courseDuration,
     courseCategory,
-    courseRequirements,
+    courseInstructor,
+    availableSeats,
   } = data;
 
-  // Get courseId from query params.
   const cookie = formatCookies();
   const cookieValue = getCookieValue();
 
+  if (!cookieValue) {
+    return NextResponse.json({ message: "Not authenticated" }, { status: 401 });
+  }
+
   const decoded = jwtDecode(cookieValue ?? "") as any;
-  const userId = decoded?.id;
+  if (!decoded?.admin) {
+    return NextResponse.json({ message: "Not authorized" }, { status: 403 });
+  }
 
   const body = {
     title: courseName,
     description: courseDescription,
-    instructor: decoded?.username || "Unknown Instructor",
+    instructor: courseInstructor,
     category: courseCategory,
     duration: Number(courseDuration),
-    available_seats: 20, // Default value or make it configurable
+    available_seats: Number(availableSeats),
     image_url: courseImage,
   };
 
-  const courseReq = await fetch(`${baseUrl}/courses`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      cookie: cookie,
-    },
-    body: JSON.stringify(body),
-  });
-  const courseJson = await courseReq.json();
+  try {
+    const courseReq = await fetch(`${baseUrl}/courses`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        cookie: cookie,
+      },
+      body: JSON.stringify(body),
+    });
 
-  if (courseJson.error) {
+    if (!courseReq.ok) {
+      const error = await courseReq.json();
+      return NextResponse.json(
+        { message: "Error creating course", error: error.error },
+        { status: courseReq.status }
+      );
+    }
+
+    const courseJson = await courseReq.json();
     return NextResponse.json(
-      { message: "Error creating course", error: courseJson.error },
-      { status: 400 }
+      { message: "Course created", course: courseJson },
+      { status: 200 }
+    );
+  } catch (error: any) {
+    return NextResponse.json(
+      { message: "Error creating course", error: error.message },
+      { status: 500 }
     );
   }
-
-  return NextResponse.json(
-    { message: "Course created", course: courseJson },
-    { status: 200 }
-  );
 }
