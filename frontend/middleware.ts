@@ -2,16 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { jwtDecode, JwtPayload } from "jwt-decode";
 import routes from "./lib/routes";
 
-interface UserJwtPayload extends JwtPayload {
-  id: string;
-  username: string;
-  email: string;
-  admin: boolean;
-  RegisteredClaims: {
-    exp: number;
-  };
-}
-
 export async function middleware(request: NextRequest) {
   const url = request.nextUrl.clone();
   const cookie = request.cookies.get("token");
@@ -20,18 +10,14 @@ export async function middleware(request: NextRequest) {
 
   if (cookieValue !== "") {
     try {
-      const decoded = jwtDecode<UserJwtPayload>(cookieValue);
+      const decoded = jwtDecode<JwtPayload>(cookieValue);
 
       console.log("decoded: ", decoded);
-      console.log("decoded.exp: ", decoded.RegisteredClaims.exp);
+      console.log("decoded.exp: ", decoded.exp);
       console.log("Date.now(): ", Date.now());
-      console.log("decoded.exp * 1000: ", decoded.RegisteredClaims.exp * 1000);
 
       // JWT exp is in seconds, Date.now() is in milliseconds
-      if (
-        decoded.RegisteredClaims.exp &&
-        decoded.RegisteredClaims.exp * 1000 > Date.now()
-      ) {
+      if (decoded.exp && decoded.exp * 1000 > Date.now()) {
         isAuthenticated = true;
       }
     } catch (error) {

@@ -7,7 +7,18 @@ import Image from "next/image";
 import { useUser } from "@/hooks/useUser";
 
 export default function Navbar() {
-  const { user, isAdmin, isAuthed, logout } = useUser();
+  const { user, isAdmin, isAuthed, logout, isLoading } = useUser();
+
+  if (isLoading) {
+    return (
+      <header className={`${S.navbar} flex items-center justify-between p-4`}>
+        <Link href="/home" className={`${S.titleContainer} ml-2`}>
+          <h1 className={`text-2xl font-bold ${S.title}`}>UCCedemy</h1>
+          <Image src="/triangulito.png" alt="UCCedemy" width="15" height={20} className={S.triangulito} />
+        </Link>
+      </header>
+    );
+  }
 
   return (
     <header className={` ${S.navbar} flex items-center justify-between p-4`}>

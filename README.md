@@ -7,3 +7,9 @@ To run the project with load balancing:
 ```
 docker-compose up --build
 ```
+
+2. Run tests (users-api):
+
+```
+make test
+```

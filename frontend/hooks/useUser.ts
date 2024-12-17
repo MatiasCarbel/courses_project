@@ -15,12 +15,26 @@ export const useUser = () => {
 
   const checkUser = async () => {
     try {
-      const response = await fetch("/api/auth/user");
+      const response = await fetch("/api/auth/user", {
+        cache: "no-store",
+        credentials: "include",
+        headers: {
+          "Cache-Control": "no-cache",
+          Pragma: "no-cache",
+        },
+      });
+
       const data = await response.json();
 
-      if (response.ok && data.user) {
-        setUser(data.user);
-        setIsAdmin(data.user.admin === true);
+      if (data.user) {
+        if (data.user.username && data.user.user_id) {
+          setUser(data.user);
+          setIsAdmin(data.user.admin === true);
+        } else {
+          console.error("Incomplete user data received:", data.user);
+          setUser(null);
+          setIsAdmin(false);
+        }
       } else {
         setUser(null);
         setIsAdmin(false);
@@ -39,13 +53,18 @@ export const useUser = () => {
   }, []);
 
   const logout = async () => {
-    await fetch("/api/auth/logout");
-    setUser(null);
-    setIsAdmin(false);
+    try {
+      await fetch("/api/auth/logout");
+      setUser(null);
+      setIsAdmin(false);
+    } catch (error) {
+      console.error("Error during logout:", error);
+    }
   };
 
-  const refreshUser = () => {
-    checkUser();
+  const refreshUser = async () => {
+    setIsLoading(true);
+    await checkUser();
   };
 
   return {

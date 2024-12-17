@@ -51,7 +51,7 @@ export default function Login() {
       }
 
       await refreshUser();
-      router.push(routes.home);
+      location.reload();
     } catch (err) {
       setError("An error occurred. Please try again." + err);
     }
