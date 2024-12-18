@@ -177,17 +177,6 @@ func (h *UserHandler) DeleteUserHandler(w http.ResponseWriter, r *http.Request) 
 
 }
 
-// jsonResponse - Enviar una respuesta en formato JSON
-func jsonResponse(w http.ResponseWriter, status int, message string, token string) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
-	json.NewEncoder(w).Encode(users.Response{
-		Status:  status,
-		Message: message,
-		Token:   token,
-	})
-}
-
 // LoginUser - Login de usuario y generación de JWT
 func (h *UserHandler) LoginUser(w http.ResponseWriter, r *http.Request) {
 	var input struct {
@@ -221,4 +210,15 @@ func (h *UserHandler) LoginUser(w http.ResponseWriter, r *http.Request) {
 	}
 
 	jsonResponse(w, http.StatusOK, "Login exitoso", token)
+}
+
+// jsonResponse - Enviar una respuesta en formato JSON
+func jsonResponse(w http.ResponseWriter, status int, message string, token string) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	json.NewEncoder(w).Encode(users.Response{
+		Status:  status,
+		Message: message,
+		Token:   token,
+	})
 }
