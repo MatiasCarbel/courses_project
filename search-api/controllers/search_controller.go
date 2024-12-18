@@ -21,9 +21,10 @@ func (c *SearchController) SearchHandler(w http.ResponseWriter, r *http.Request)
 	w.Header().Set("Content-Type", "application/json")
 
 	query := r.URL.Query().Get("q")
+	category := r.URL.Query().Get("category")
 	available := r.URL.Query().Get("available")
 
-	result, err := c.service.SearchCourses(query, available)
+	result, err := c.service.SearchCourses(query, category, available)
 	if err != nil {
 		log.Printf("Error searching courses: %v", err)
 		http.Error(w, "Internal server error", http.StatusInternalServerError)

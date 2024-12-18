@@ -38,26 +38,40 @@ func (s *RabbitMQService) ConsumeRabbitMQMessages(conn *amqp.Connection) {
 	}
 
 	for d := range msgs {
-		var event map[string]interface{}
-		if err := json.Unmarshal(d.Body, &event); err != nil {
-			log.Printf("Error parsing message: %v", err)
-			continue
+		s.ProcessMessage(d.Body)
+	}
+}
+
+func (s *RabbitMQService) ProcessMessage(msg []byte) {
+	var event map[string]interface{}
+	if err := json.Unmarshal(msg, &event); err != nil {
+		log.Printf("Error unmarshaling message: %v", err)
+		return
+	}
+
+	action := event["action"].(string)
+	courseData := event["course"].(map[string]interface{})
+
+	switch action {
+	case "upsert":
+		course := domain.Course{
+			ID:             courseData["id"].(string),
+			Title:          courseData["title"].(string),
+			Description:    courseData["description"].(string),
+			Instructor:     courseData["instructor"].(string),
+			Category:       courseData["category"].(string),
+			ImageURL:       courseData["image_url"].(string),
+			Duration:       int(courseData["duration"].(float64)),
+			AvailableSeats: int(courseData["available_seats"].(float64)),
 		}
-
-		action := event["action"].(string)
-		courseData := event["course"].(map[string]interface{})
-
-		switch action {
-		case "upsert":
-			course := domain.Course{
-				ID:             courseData["id"].(string),
-				Title:          courseData["title"].(string),
-				Description:    courseData["description"].(string),
-				Instructor:     courseData["instructor"].(string),
-				Duration:       int(courseData["duration"].(float64)),
-				AvailableSeats: int(courseData["available_seats"].(float64)),
-			}
-			s.courseService.UpdateCourse(course)
+		s.courseService.UpdateCourse(course)
+	case "delete":
+		courseID := courseData["id"].(string)
+		log.Printf("Deleting course with ID: %s", courseID)
+		if err := s.courseService.DeleteCourse(courseID); err != nil {
+			log.Printf("Error deleting course from Solr: %v", err)
+		} else {
+			log.Printf("Successfully deleted course from Solr")
 		}
 	}
 }

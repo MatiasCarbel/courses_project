@@ -15,6 +15,12 @@ export async function GET(
     // Get course details
     const courseResponse = await fetch(`${baseUrl}/courses/${courseId}`);
     if (!courseResponse.ok) {
+      if (courseResponse.status === 404) {
+        return NextResponse.json(
+          { message: "Course not found" },
+          { status: 404 }
+        );
+      }
       throw new Error("Failed to fetch course");
     }
     const courseData = await courseResponse.json();
@@ -50,7 +56,7 @@ export async function GET(
   } catch (error: any) {
     return NextResponse.json(
       { message: error.message || "Error fetching course" },
-      { status: 500 }
+      { status: error.status || 500 }
     );
   }
 }

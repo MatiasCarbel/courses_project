@@ -22,6 +22,7 @@ export default function Component() {
     try {
       const res = await fetch(`/api/courses?name=${searchTerm}&category=${categoryFilter}&available=${availableOnly}`)
       const data = await res.json()
+      console.log("data", data)
       if (data?.courses) {
         // Get course IDs
         const courseIds = data.courses.map((course: CourseType) => course.id)
@@ -36,6 +37,7 @@ export default function Component() {
         })
 
         const { data: availData } = await availRes.json()
+        console.log(availData)
 
         // Merge availability data with courses
         const coursesWithAvailability = data.courses.map((course: CourseType) => ({

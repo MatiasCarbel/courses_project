@@ -670,7 +670,6 @@ func CheckAvailability(client *mongo.Client, w http.ResponseWriter, r *http.Requ
 }
 
 func publishDeleteEvent(courseID primitive.ObjectID) {
-	// Connect to RabbitMQ
 	conn, err := amqp091.Dial(os.Getenv("RABBITMQ_URI"))
 	if err != nil {
 		log.Printf("Failed to connect to RabbitMQ: %v", err)
@@ -691,7 +690,7 @@ func publishDeleteEvent(courseID primitive.ObjectID) {
 		false,           // delete when unused
 		false,           // exclusive
 		false,           // no-wait
-		nil,            // arguments
+		nil,             // arguments
 	)
 	if err != nil {
 		log.Printf("Failed to declare queue: %v", err)
@@ -701,7 +700,7 @@ func publishDeleteEvent(courseID primitive.ObjectID) {
 	event := map[string]interface{}{
 		"action": "delete",
 		"course": map[string]interface{}{
-			"id": courseID.Hex(),
+			"id": courseID.Hex(), // Ensure we're sending the hex string ID
 		},
 	}
 
@@ -717,7 +716,8 @@ func publishDeleteEvent(courseID primitive.ObjectID) {
 		false,  // mandatory
 		false,  // immediate
 		amqp091.Publishing{
-			ContentType: "application/json",
+			DeliveryMode: amqp091.Persistent,
+			ContentType:  "application/json",
 			Body:        body,
 		})
 	if err != nil {
