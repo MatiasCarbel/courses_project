@@ -25,8 +25,28 @@ export default function Course({ params }: { params: { slug: string } }) {
   const { isAdmin } = useUser();
 
   useEffect(() => {
-    updateCourses();
-  }, []);
+    const fetchCourse = async () => {
+      try {
+        const response = await fetch(`/api/courses/${params?.slug}`);
+        if (!response.ok) {
+          if (response.status === 404) {
+            router.push('/home');
+            return;
+          }
+          throw new Error("Failed to fetch course");
+        }
+        const data = await response.json();
+        setCourse(data?.course);
+        setAlreadyEnrolled(data?.course?.is_subscribed ?? false);
+        setSrc(data?.course?.image_url ?? "/placeholder.svg");
+      } catch (error) {
+        console.error("Error fetching course:", error);
+        router.push('/home');
+      }
+    };
+
+    fetchCourse();
+  }, [params?.slug, router]);
 
   useEffect(() => {
     if (course) {
@@ -59,7 +79,10 @@ export default function Course({ params }: { params: { slug: string } }) {
         throw new Error("Failed to delete course");
       }
 
+      await new Promise(resolve => setTimeout(resolve, 1000));
+
       router.push('/home');
+      router.refresh();
     } catch (error) {
       console.error("Error deleting course:", error);
       alert("Failed to delete course");

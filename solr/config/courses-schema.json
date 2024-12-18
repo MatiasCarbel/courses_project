@@ -35,6 +35,12 @@
       "type": "pint",
       "indexed": true,
       "stored": true
+    },
+    {
+      "name": "image_url",
+      "type": "string",
+      "indexed": true,
+      "stored": true
     }
   ]
 }
