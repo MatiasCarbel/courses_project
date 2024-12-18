@@ -1,47 +1,79 @@
-import routes from "@/lib/routes";
-import { UserType } from "@/lib/types";
-import { useRouter } from "next/navigation";
-import { usePathname } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useState, useEffect } from "react";
+import { jwtDecode, JwtPayload } from "jwt-decode";
 
-export function useUser() {
-  const [user, setUser] = useState<UserType>();
+interface UserJwtPayload extends JwtPayload {
+  id: string;
+  username: string;
+  email: string;
+  admin: boolean;
+}
+
+export const useUser = () => {
+  const [user, setUser] = useState<UserJwtPayload | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
-  const [isAuthed, setIsAuthed] = useState(false);
-  const router = useRouter();
-  const pathname = usePathname();
+  const [isLoading, setIsLoading] = useState(true);
+
+  const checkUser = async () => {
+    try {
+      const response = await fetch("/api/auth/user", {
+        cache: "no-store",
+        credentials: "include",
+        headers: {
+          "Cache-Control": "no-cache",
+          Pragma: "no-cache",
+        },
+      });
+
+      const data = await response.json();
+
+      if (data.user) {
+        if (data.user.username && data.user.user_id) {
+          setUser(data.user);
+          setIsAdmin(data.user.admin === true);
+        } else {
+          console.error("Incomplete user data received:", data.user);
+          setUser(null);
+          setIsAdmin(false);
+        }
+      } else {
+        setUser(null);
+        setIsAdmin(false);
+      }
+    } catch (error) {
+      console.error("Error checking user:", error);
+      setUser(null);
+      setIsAdmin(false);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    checkUser();
+  }, []);
+
+  const logout = async () => {
+    try {
+      await fetch("/api/auth/logout");
+      setUser(null);
+      setIsAdmin(false);
+      window.location.href = "/login";
+    } catch (error) {
+      console.error("Error during logout:", error);
+    }
+  };
 
   const refreshUser = async () => {
-    const response = await fetch("/api/auth/user");
-    const userJson = await response.json();
-    console.log(userJson);
-
-    if (userJson?.shouldLogin) {
-      setUser(undefined);
-      return;
-    }
-
-    setUser(userJson?.user);
-    setIsAuthed(true);
-    setIsAdmin(userJson?.user?.usertype);
+    setIsLoading(true);
+    await checkUser();
   };
 
-  const logout = () => {
-    console.log("logging out");
-    fetch("/api/auth/logout").then((response) => {
-      if (response.ok) {
-        setUser(undefined);
-        setIsAuthed(false);
-        setIsAdmin(false);
-        router.push(routes.login);
-      }
-    });
+  return {
+    user,
+    isAdmin,
+    isLoading,
+    isAuthed: !!user,
+    logout,
+    refreshUser,
   };
-
-  // on route change refresh user.
-  useEffect(() => {
-    refreshUser();
-  }, [pathname]);
-
-  return { user, isAdmin, isAuthed, refreshUser, logout };
-}
+};

@@ -1,8 +1,5 @@
 "use client";
-import { Input } from "@/components/ui/input"
-import { Button } from "@/components/ui/button"
-import { DropdownMenuTrigger, DropdownMenuContent, DropdownMenu, DropdownMenuRadioGroup, DropdownMenuRadioItem } from "@/components/ui/dropdown-menu"
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useState } from "react"
 import { CourseType } from "@/lib/types";
 import CourseCard from "@/components/CourseCard/CourseCard.components";
 
@@ -12,7 +9,10 @@ export default function Component() {
   useEffect(() => {
     fetch(`/api/courses/myCourses`)
       .then((res) => res.json())
-      .then((data) => setCourses(data?.courses))
+      .then((data) => {
+        console.log("data: ", data);
+        setCourses(data?.data?.courses ?? [])
+      })
   }, [])
 
   return (
@@ -21,32 +21,15 @@ export default function Component() {
         <h1 className="text-3xl font-bold">My Courses</h1>
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-        {
-          courses?.map((course) => (
-            <CourseCard enrolled={true} key={course.course_id} course={course} />
-          ))
-        }
+        {Array.isArray(courses) && courses.map((course) => (
+          <CourseCard enrolled={true} key={course.id} course={course} />
+        ))}
+        {(!courses || courses.length === 0) && (
+          <div className="col-span-full">
+            <p className="text-center text-gray-500">No courses found</p>
+          </div>
+        )}
       </div>
     </main>
-  )
-}
-
-function TagIcon(props: React.SVGProps<SVGSVGElement>) {
-  return (
-    <svg
-      {...props}
-      xmlns="http://www.w3.org/2000/svg"
-      width="24"
-      height="24"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <path d="M12.586 2.586A2 2 0 0 0 11.172 2H4a2 2 0 0 0-2 2v7.172a2 2 0 0 0 .586 1.414l8.704 8.704a2.426 2.426 0 0 0 3.42 0l6.58-6.58a2.426 2.426 0 0 0 0-3.42z" />
-      <circle cx="7.5" cy="7.5" r=".5" fill="currentColor" />
-    </svg>
   )
 }

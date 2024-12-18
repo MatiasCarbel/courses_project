@@ -1,21 +1,28 @@
 import { NextRequest, NextResponse } from "next/server";
-import { jwtDecode } from "jwt-decode";
+import { jwtDecode, JwtPayload } from "jwt-decode";
 import routes from "./lib/routes";
 
 export async function middleware(request: NextRequest) {
   const url = request.nextUrl.clone();
-  const cookie = request.cookies.get("auth");
+  const cookie = request.cookies.get("token");
   const cookieValue = cookie?.value ?? "";
   let isAuthenticated = false;
 
   if (cookieValue !== "") {
-    const decoded = jwtDecode(cookieValue ?? "");
+    try {
+      const decoded = jwtDecode<JwtPayload>(cookieValue);
 
-    // Check expiration time against current itme.
-    if ((decoded?.exp ?? 0) * 1000 < Date.now()) {
+      console.log("decoded: ", decoded);
+      console.log("decoded.exp: ", decoded.exp);
+      console.log("Date.now(): ", Date.now());
+
+      // JWT exp is in seconds, Date.now() is in milliseconds
+      if (decoded.exp && decoded.exp * 1000 > Date.now()) {
+        isAuthenticated = true;
+      }
+    } catch (error) {
+      console.error("Error decoding token:", error);
       isAuthenticated = false;
-    } else {
-      isAuthenticated = true;
     }
   }
 
@@ -40,10 +47,21 @@ export async function middleware(request: NextRequest) {
   }
 
   // Auth-required pages for unauthenticated users
+  const courseRouteRegex = new RegExp(
+    `^${routes.course.replace(":id", "[^/]+")}$`
+  );
+
+  console.log(
+    "courseRouteRegex.test(url.pathname): ",
+    courseRouteRegex.test(url.pathname)
+  );
+
+  console.log("isAuthenticated: ", isAuthenticated);
+
   if (
     !isAuthenticated &&
-    [routes.myCourses, routes.course].some((route) =>
-      url.pathname.includes(route)
+    [routes.myCourses, routes.course, routes.adminServices].some(
+      (route) => url.pathname === route || courseRouteRegex.test(url.pathname)
     )
   ) {
     return NextResponse.redirect(new URL(routes.login, request.url));

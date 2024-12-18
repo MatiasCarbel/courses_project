@@ -9,22 +9,42 @@ services:
       - DB_HOST=mysql # MySQL service name
       - DB_PORT=3306
       - DB_USER=root # MySQL root user
-      - DB_PASSWORD=yourpassword # MySQL root password
-      - DB_NAME=usersdb # Name of the MySQL database
+      - DB_PASSWORD=root # MySQL root password
+      - DB_NAME=courses # Name of the MySQL database
     depends_on:
-      - mysql # Ensure MySQL starts before users-api
+      mysql:
+        condition: service_healthy
+    networks:
+      - app-network
 
   # MySQL Service
   mysql:
-    image: mysql:latest # MySQL Docker image
+    image: mysql:latest
     environment:
-      MYSQL_ROOT_PASSWORD: yourpassword # MySQL root password
-      MYSQL_DATABASE: usersdb # Name of the database
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: courses
     ports:
-      - "3306:3306" # Expose MySQL on port 3306
+      - "3306:3306"
     volumes:
-      - mysql-data:/var/lib/mysql # Persist MySQL data
-      - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql:ro # Mount init.sql for table creation (read-only)
+      - mysql-data:/var/lib/mysql
+      - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    networks:
+      - app-network
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "mysqladmin",
+          "ping",
+          "-h",
+          "localhost",
+          "-u",
+          "root",
+          "-p$$MYSQL_ROOT_PASSWORD",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
   # Memcached Service
   memcached:
@@ -33,12 +53,10 @@ services:
       - "11211:11211"
 
   # Courses API Service
-  courses-api:
-    build: ./courses-api # Path to your Dockerfile for courses-api
-    ports:
-      - "8002:8002" # Expose courses-api on port 8002
+  courses-api-1:
+    build: ./courses-api
     environment:
-      - MONGO_URI=mongodb://mongo:27017/coursesdb # MongoDB connection URI
+      - MONGO_URI=mongodb://mongo:27017/coursesdb
       - RABBITMQ_URI=amqp://guest:guest@rabbitmq:5672/
     depends_on:
       mongo:
@@ -47,6 +65,38 @@ services:
         condition: service_started
     networks:
       - app-network
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+
+  courses-api-2:
+    build: ./courses-api
+    environment:
+      - MONGO_URI=mongodb://mongo:27017/coursesdb
+      - RABBITMQ_URI=amqp://guest:guest@rabbitmq:5672/
+    depends_on:
+      mongo:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_started
+    networks:
+      - app-network
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+
+  courses-api-3:
+    build: ./courses-api
+    environment:
+      - MONGO_URI=mongodb://mongo:27017/coursesdb
+      - RABBITMQ_URI=amqp://guest:guest@rabbitmq:5672/
+    depends_on:
+      mongo:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_started
+    networks:
+      - app-network
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
 
   # MongoDB Service
   mongo:
@@ -113,16 +163,27 @@ services:
     ports:
       - "3000:3000"
     environment:
-      - NEXT_PUBLIC_SEARCH_API_URL=http://search-api:8003
-      - NEXT_PUBLIC_COURSES_API_URL=http://courses-api:8002
       - NEXT_PUBLIC_USERS_API_URL=http://users-api:8001
-      - NEXT_PUBLIC_BASE_API_URL=http://search-api:8003
+      - NEXT_PUBLIC_COURSES_API_URL=http://nginx:80
+      - NEXT_PUBLIC_SEARCH_API_URL=http://search-api:8003
+    depends_on:
+      - nginx # Updated dependency
+      - users-api
+      - search-api
     networks:
       - app-network
+
+  # Nginx Load Balancer
+  nginx:
+    build: ./nginx
+    ports:
+      - "8080:80"
     depends_on:
-      - search-api
-      - courses-api
-      - users-api
+      - courses-api-1
+      - courses-api-2
+      - courses-api-3
+    networks:
+      - app-network
 
 volumes:
   mysql-data:

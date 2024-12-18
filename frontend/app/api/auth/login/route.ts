@@ -1,15 +1,14 @@
 import { NextResponse } from "next/server";
-import { cookies } from "next/headers";
 
 export async function POST(request: Request) {
   const data = await request.json();
   const { email, password } = data;
 
   const baseUrl =
-    process.env.NEXT_PUBLIC_BASE_API_URL ?? "http://users-api:8001";
+    process.env.NEXT_PUBLIC_USERS_API_URL ?? "http://users-api:8001";
 
   try {
-    const loginReq = await fetch(`${baseUrl}/login`, {
+    const loginReq = await fetch(`${baseUrl}/user/login`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -37,9 +36,9 @@ export async function POST(request: Request) {
 
     // Set the cookie from the API response
     response.cookies.set({
-      name: "auth",
+      name: "token",
       value: loginJson.token,
-      httpOnly: true,
+      httpOnly: false,
       secure: process.env.NODE_ENV === "production",
       sameSite: "lax",
       path: "/",

@@ -1,12 +1,13 @@
 "use client";
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
-import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useUser } from "@/hooks/useUser";
 
 export default function Component() {
   const [courseImage, setCourseImage] = useState<string>("");
@@ -14,12 +15,21 @@ export default function Component() {
   const [courseDescription, setCourseDescription] = useState<string>("");
   const [courseDuration, setCourseDuration] = useState<number>(0);
   const [courseCategory, setCourseCategory] = useState<string>("");
-  const [courseRequirements, setCourseRequirements] = useState<string>("");
+  const [courseInstructor, setCourseInstructor] = useState<string>("");
+  const [availableSeats, setAvailableSeats] = useState<number>(0);
 
   const [isValid, setIsValid] = useState<boolean>(false);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
 
   const router = useRouter();
+  const { isAdmin, isLoading } = useUser();
+
+  // Redirect if user is not admin
+  useEffect(() => {
+    if (!isAdmin && !isLoading) {
+      router.push('/home');
+    }
+  }, [isAdmin, router, isLoading]);
 
   useEffect(() => {
     setIsValid(
@@ -28,32 +38,51 @@ export default function Component() {
       courseDescription.length > 0 &&
       courseDuration > 0 &&
       courseCategory.length > 0 &&
-      courseRequirements.length > 0
+      courseInstructor.length > 0 &&
+      availableSeats > 0
     );
-  }, [courseImage, courseName, courseDescription, courseDuration, courseCategory, courseRequirements]);
+  }, [courseImage, courseName, courseDescription, courseDuration, courseCategory, courseInstructor, availableSeats]);
 
-  const handleSubmit = (event: React.FormEvent) => {
+  const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
     if (isSubmitting || !isValid) return;
     setIsSubmitting(true);
 
-    fetch("/api/courses/createCourse", {
-      method: "POST",
-      body: JSON.stringify({
-        courseImage,
-        courseName,
-        courseDescription,
-        courseDuration,
-        courseCategory,
-        courseRequirements,
-      }),
-    })
-      .then((res) => res.json())
-      .finally(() => {
-        setIsSubmitting(false);
-        router.push(`/home`);
+    try {
+      const response = await fetch("/api/courses", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          title: courseName,
+          description: courseDescription,
+          instructor: courseInstructor,
+          category: courseCategory,
+          duration: Number(courseDuration),
+          available_seats: Number(availableSeats),
+          image_url: courseImage,
+        }),
       });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to create course');
+      }
+
+      router.push('/home');
+    } catch (error) {
+      console.error('Error creating course:', error);
+      alert(error instanceof Error ? error.message : 'Failed to create course');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
+
+  if (!isAdmin) {
+    return null;
+  }
 
   return (
     <Card className="w-full max-w-2xl m-auto">
@@ -94,13 +123,12 @@ export default function Component() {
           </div>
           <div className="grid grid-cols-2 gap-6">
             <div className="space-y-2">
-              <Label htmlFor="duration">Course Duration (hours)</Label>
+              <Label htmlFor="instructor">Course Instructor</Label>
               <Input
-                id="duration"
-                type="number"
-                placeholder="Enter duration"
-                value={courseDuration}
-                onChange={(e) => setCourseDuration(Number(e.target.value))}
+                id="instructor"
+                placeholder="Enter instructor name"
+                value={courseInstructor}
+                onChange={(e) => setCourseInstructor(e.target.value)}
               />
             </div>
             <div className="space-y-2">
@@ -122,14 +150,29 @@ export default function Component() {
               </Select>
             </div>
           </div>
-          <div className="space-y-2">
-            <Label htmlFor="requirements">Course Requirements</Label>
-            <Textarea
-              id="requirements"
-              placeholder="Enter course requirements"
-              value={courseRequirements}
-              onChange={(e) => setCourseRequirements(e.target.value)}
-            />
+          <div className="grid grid-cols-2 gap-6">
+            <div className="space-y-2">
+              <Label htmlFor="duration">Course Duration (hours)</Label>
+              <Input
+                id="duration"
+                type="number"
+                min="1"
+                placeholder="Enter duration"
+                value={courseDuration}
+                onChange={(e) => setCourseDuration(Number(e.target.value))}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="seats">Available Seats</Label>
+              <Input
+                id="seats"
+                type="number"
+                min="1"
+                placeholder="Enter available seats"
+                value={availableSeats}
+                onChange={(e) => setAvailableSeats(Number(e.target.value))}
+              />
+            </div>
           </div>
           <Button type="submit" className="justify-self-end" disabled={!isValid || isSubmitting}>
             Create Course

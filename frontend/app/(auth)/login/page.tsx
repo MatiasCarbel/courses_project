@@ -45,17 +45,15 @@ export default function Login() {
 
       const data = await response.json();
 
-      console.log('data: ', data);
-
       if (!response.ok) {
         setError(data.message || "Invalid credentials");
         return;
       }
 
       await refreshUser();
-      router.push(routes.home);
+      location.reload();
     } catch (err) {
-      setError("An error occurred. Please try again.");
+      setError("An error occurred. Please try again." + err);
     }
   };
 
