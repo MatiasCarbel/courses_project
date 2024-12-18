@@ -1,71 +1,84 @@
 package middlewares
 
 import (
-	"errors"
+	"context"
+	"courses-api/models"
 	"net/http"
-	"strconv"
-
-	"encoding/json"
+	"os"
+	"strings"
 
 	"github.com/golang-jwt/jwt/v4"
 )
 
-var jwtSecret = []byte("uccdemy") // Use a secure key in production
-
-// Claims define la estructura de los claims del JWT
 type Claims struct {
-	Admin bool `json:"admin"`
+	Username string `json:"username"`
+	UserID   int    `json:"user_id"`
+	Admin    bool   `json:"admin"`
 	jwt.RegisteredClaims
 }
 
-func verifyJWT(r *http.Request) (Claims, error) {
-	// Get auth cookie
-	cookie, err := r.Cookie("auth")
-	if err != nil {
-		return Claims{}, errors.New("auth cookie not found")
+func (c *Claims) Valid() error {
+	if err := c.RegisteredClaims.Valid(); err != nil {
+		return err
 	}
-
-	tokenString := cookie.Value
-	token, err := jwt.ParseWithClaims(tokenString, &Claims{}, func(token *jwt.Token) (interface{}, error) {
-		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-			return nil, errors.New("invalid signing method")
-		}
-		return jwtSecret, nil
-	})
-	
-	if claims, ok := token.Claims.(*Claims); ok && token.Valid {
-		return *claims, nil
+	if c.UserID == 0 {
+		return models.ErrInvalidToken
 	}
-	return Claims{}, err
+	return nil
 }
 
-// Middleware para verificar si el usuario es admin
+var jwtSecret = []byte(os.Getenv("JWT_SECRET"))
+
 func VerifyAdmin(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		// claims, err := verifyJWT(r)
-		// fmt.Println("claims: ", claims)
-		// fmt.Println("err: ", err)
-		// if err != nil {
-		// 	jsonResponse(w, http.StatusUnauthorized, "Unauthorized", "")
-		// 	return
-		// }
+		authHeader := r.Header.Get("Authorization")
+		if authHeader == "" {
+			http.Error(w, models.ErrUnauthorized.Error(), http.StatusUnauthorized)
+			return
+		}
 
-		// if !claims.Admin {
-		// 	jsonResponse(w, http.StatusForbidden, "Admin access required", "")
-		// 	return
-		// }
+		tokenString := strings.Replace(authHeader, "Bearer ", "", 1)
+		claims := &Claims{}
+		token, err := jwt.ParseWithClaims(tokenString, claims, func(token *jwt.Token) (interface{}, error) {
+			return jwtSecret, nil
+		})
 
-		next(w, r)
+		if err != nil || !token.Valid {
+			http.Error(w, models.ErrInvalidToken.Error(), http.StatusUnauthorized)
+			return
+		}
+
+		if !claims.Admin {
+			http.Error(w, models.ErrForbidden.Error(), http.StatusForbidden)
+			return
+		}
+
+		ctx := context.WithValue(r.Context(), "userID", claims.UserID)
+		ctx = context.WithValue(ctx, "admin", claims.Admin)
+		next.ServeHTTP(w, r.WithContext(ctx))
 	}
 }
 
-// jsonResponse - Enviar una respuesta en formato JSON
-func jsonResponse(w http.ResponseWriter, status int, message string, token string) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
-	json.NewEncoder(w).Encode(map[string]string{
-		"status":  strconv.Itoa(status),
-		"message": message,
-		"token":   token,
-	})
+func VerifyToken(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		authHeader := r.Header.Get("Authorization")
+		if authHeader == "" {
+			http.Error(w, models.ErrUnauthorized.Error(), http.StatusUnauthorized)
+			return
+		}
+
+		tokenString := strings.Replace(authHeader, "Bearer ", "", 1)
+		claims := &Claims{}
+		token, err := jwt.ParseWithClaims(tokenString, claims, func(token *jwt.Token) (interface{}, error) {
+			return jwtSecret, nil
+		})
+
+		if err != nil || !token.Valid {
+			http.Error(w, models.ErrInvalidToken.Error(), http.StatusUnauthorized)
+			return
+		}
+
+		ctx := context.WithValue(r.Context(), "userID", claims.UserID)
+		next.ServeHTTP(w, r.WithContext(ctx))
+	}
 }

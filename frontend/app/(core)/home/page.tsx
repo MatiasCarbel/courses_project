@@ -37,6 +37,8 @@ export default function Component() {
 
         const availData = await availRes.json()
 
+        console.log('Availability data:', availData)
+
         // Merge availability data with courses
         const coursesWithAvailability = data.courses.map((course: CourseType) => ({
           ...course,
