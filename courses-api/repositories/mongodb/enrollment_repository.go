@@ -24,7 +24,7 @@ func (r *EnrollmentRepository) collection() *mongo.Collection {
 func (r *EnrollmentRepository) Create(ctx context.Context, enrollment *models.Enrollment) error {
 	result, err := r.collection().InsertOne(ctx, enrollment)
 	if err != nil {
-		return err
+		return models.ErrDatabaseOperation
 	}
 	enrollment.ID = result.InsertedID.(primitive.ObjectID)
 	return nil
@@ -33,13 +33,13 @@ func (r *EnrollmentRepository) Create(ctx context.Context, enrollment *models.En
 func (r *EnrollmentRepository) FindByUserID(ctx context.Context, userID int) ([]models.Enrollment, error) {
 	cursor, err := r.collection().Find(ctx, bson.M{"user_id": userID})
 	if err != nil {
-		return nil, err
+		return nil, models.ErrDatabaseOperation
 	}
 	defer cursor.Close(ctx)
 
 	var enrollments []models.Enrollment
 	if err = cursor.All(ctx, &enrollments); err != nil {
-		return nil, err
+		return nil, models.ErrDatabaseOperation
 	}
 	return enrollments, nil
 }
@@ -50,7 +50,7 @@ func (r *EnrollmentRepository) CheckEnrollment(ctx context.Context, courseID pri
 		"user_id":   userID,
 	})
 	if err != nil {
-		return false, err
+		return false, models.ErrDatabaseOperation
 	}
 	return count > 0, nil
 } 

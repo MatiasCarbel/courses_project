@@ -6,115 +6,131 @@ import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 
-interface Port {
-  ip: string;
-  privatePort: number;
-  publicPort: number;
-  type: string;
-}
-
-interface Container {
+interface ServiceInstance {
   id: string;
   name: string;
-  status: string;
-  image: string;
-  created: number;
-  state: string;
-  ports: Port[];
+  status: "running" | "stopped";
+  health: "healthy" | "unhealthy";
+  url: string;
+  createdAt: string;
+}
+
+interface ServiceGroup {
+  name: string;
+  instances: ServiceInstance[];
+  maxInstances: number;
 }
 
 export default function ServicesPage() {
-  const [containers, setContainers] = useState<Container[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
+  const [services, setServices] = useState<ServiceGroup[]>([]);
   const router = useRouter();
   const { isAdmin, isLoading } = useUser();
 
   useEffect(() => {
-    if (!isLoading && !isAdmin) {
+    if (!isAdmin && !isLoading) {
       router.push('/home');
-      return;
     }
+  }, [isAdmin, router, isLoading]);
 
-    const fetchContainers = async () => {
-      try {
-        const response = await fetch('/api/admin/containers', {
-          credentials: 'include'
-        });
+  useEffect(() => {
+    fetchServices();
+  }, []);
 
-        if (response.status === 401) {
-          router.push('/login');
-          return;
-        }
-
-        if (!response.ok) {
-          throw new Error(`Error: ${response.statusText}`);
-        }
-
-        const data = await response.json();
-        setContainers(data);
-      } catch (err: any) {
-        console.error('Error fetching containers:', err);
-        setError(err.message);
-      } finally {
-        setLoading(false);
+  const fetchServices = async () => {
+    try {
+      const response = await fetch('/api/services');
+      const data = await response.json();
+      if (response.ok) {
+        setServices(data.data);
       }
-    };
-
-    if (isAdmin) {
-      fetchContainers();
-      const interval = setInterval(fetchContainers, 5000);
-      return () => clearInterval(interval);
+    } catch (error) {
+      console.error('Error fetching services:', error);
     }
-  }, [isAdmin, isLoading, router]);
+  };
 
-  if (isLoading) return <div>Loading...</div>;
-  if (!isAdmin) return null;
-  if (error) return <div>Error: {error}</div>;
+  const addInstance = async (serviceName: string) => {
+    try {
+      const response = await fetch('/api/services', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ serviceName }),
+      });
 
-  const groupedContainers = containers.reduce((acc, container) => {
-    const serviceName = container.name.split('-')[0];
-    if (!acc[serviceName]) {
-      acc[serviceName] = [];
+      if (response.ok) {
+        fetchServices();
+      }
+    } catch (error) {
+      console.error('Error adding instance:', error);
     }
-    acc[serviceName].push(container);
-    return acc;
-  }, {} as Record<string, Container[]>);
+  };
+
+  const removeInstance = async (serviceName: string, instanceId: string) => {
+    try {
+      const response = await fetch(`/api/services/${instanceId}`, {
+        method: 'DELETE',
+      });
+
+      if (response.ok) {
+        fetchServices();
+      }
+    } catch (error) {
+      console.error('Error removing instance:', error);
+    }
+  };
+
+  if (!isAdmin) {
+    return null;
+  }
 
   return (
     <div className="container mx-auto py-8 px-4">
       <h1 className="text-3xl font-bold mb-8">Services Dashboard</h1>
       <div className="grid gap-6">
-        {Object.entries(groupedContainers).map(([serviceName, serviceContainers]) => (
-          <Card key={serviceName}>
+        {services.map((service) => (
+          <Card key={service.name}>
             <CardHeader>
-              <CardTitle className="capitalize">{serviceName} Service</CardTitle>
+              <div className="flex justify-between items-center">
+                <CardTitle>{service.name}</CardTitle>
+                <Button
+                  onClick={() => addInstance(service.name)}
+                  disabled={true}
+                >
+                  Add Instance
+                </Button>
+              </div>
             </CardHeader>
             <CardContent>
               <div className="grid gap-4">
-                {serviceContainers.map((container) => (
+                {service.instances.map((instance) => (
                   <div
-                    key={container.id}
+                    key={instance.id}
                     className="flex items-center justify-between p-4 border rounded-lg"
                   >
                     <div className="flex items-center gap-4">
                       <div>
-                        <h3 className="font-semibold">{container.name}</h3>
-                        <p className="text-sm text-gray-500">ID: {container.id}</p>
-                        <p className="text-sm text-gray-500">
-                          Ports: {container.ports.map(p => `${p.publicPort}:${p.privatePort}`).join(', ')}
-                        </p>
+                        <h3 className="font-semibold">{instance.name}</h3>
+                        <p className="text-sm text-gray-500">{instance.url}</p>
                       </div>
                       <Badge
-                        variant={container.state === "running" ? "default" : "destructive"}
+                        variant={instance.health === "healthy" ? "default" : "destructive"}
                       >
-                        {container.state}
+                        {instance.health}
+                      </Badge>
+                      <Badge
+                        variant={instance.status === "running" ? "default" : "secondary"}
+                      >
+                        {instance.status}
                       </Badge>
                     </div>
-                    <div className="text-sm text-gray-500">
-                      {new Date(container.created * 1000).toLocaleString()}
-                    </div>
+                    <Button
+                      variant="destructive"
+                      onClick={() => removeInstance(service.name, instance.id)}
+                      disabled={true}
+                    >
+                      Remove
+                    </Button>
                   </div>
                 ))}
               </div>

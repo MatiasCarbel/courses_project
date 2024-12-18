@@ -4,7 +4,7 @@ go 1.20
 
 require (
 	github.com/docker/docker v24.0.7+incompatible
-	github.com/golang-jwt/jwt v3.2.2+incompatible
+	github.com/go-chi/chi/v5 v5.2.0
 	github.com/golang-jwt/jwt/v4 v4.5.0
 	github.com/gorilla/mux v1.8.1
 	github.com/rabbitmq/amqp091-go v1.9.0

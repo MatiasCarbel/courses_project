@@ -49,29 +49,32 @@ export default function Component() {
     setIsSubmitting(true);
 
     try {
-      const response = await fetch("/api/courses/createCourse", {
+      const response = await fetch("/api/courses", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          courseImage,
-          courseName,
-          courseDescription,
-          courseDuration,
-          courseCategory,
-          courseInstructor,
-          availableSeats,
+          title: courseName,
+          description: courseDescription,
+          instructor: courseInstructor,
+          category: courseCategory,
+          duration: Number(courseDuration),
+          available_seats: Number(availableSeats),
+          image_url: courseImage,
         }),
       });
 
+      const data = await response.json();
+
       if (!response.ok) {
-        throw new Error('Failed to create course');
+        throw new Error(data.error || 'Failed to create course');
       }
 
       router.push('/home');
     } catch (error) {
       console.error('Error creating course:', error);
+      alert(error instanceof Error ? error.message : 'Failed to create course');
     } finally {
       setIsSubmitting(false);
     }

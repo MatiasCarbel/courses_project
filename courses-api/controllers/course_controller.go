@@ -100,12 +100,11 @@ func (c *CourseController) GetCourse(w http.ResponseWriter, r *http.Request) {
 }
 
 func (c *CourseController) UpdateCourse(w http.ResponseWriter, r *http.Request) {
-	params := mux.Vars(r)
-	courseID, err := primitive.ObjectIDFromHex(params["id"])
-	if err != nil {
+	courseID := mux.Vars(r)["id"]
+	if courseID == "" {
 		views.JSON(w, views.Response{
 			Status: http.StatusBadRequest,
-			Error:  "Invalid course ID",
+			Error:  "course id is required",
 		})
 		return
 	}
@@ -114,13 +113,24 @@ func (c *CourseController) UpdateCourse(w http.ResponseWriter, r *http.Request) 
 	if err := json.NewDecoder(r.Body).Decode(&course); err != nil {
 		views.JSON(w, views.Response{
 			Status: http.StatusBadRequest,
-			Error:  "Invalid request body",
+			Error:  "invalid request body",
 		})
 		return
 	}
 
-	course.ID = courseID
-	if err := c.service.UpdateCourse(r.Context(), &course); err != nil {
+	// Convert courseID to ObjectID first
+	objectID, err := primitive.ObjectIDFromHex(courseID)
+	if err != nil {
+		views.JSON(w, views.Response{
+			Status: http.StatusBadRequest,
+			Error:  "Invalid course ID",
+		})
+		return
+	}
+
+	// Use objectID instead of courseID
+	existingCourse, err := c.service.GetCourse(r.Context(), objectID)
+	if err != nil {
 		status := http.StatusInternalServerError
 		if err.Error() == "course not found" {
 			status = http.StatusNotFound
@@ -132,9 +142,41 @@ func (c *CourseController) UpdateCourse(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
+	// Update only the fields that are provided
+	if course.Title != "" {
+		existingCourse.Title = course.Title
+	}
+	if course.Description != "" {
+		existingCourse.Description = course.Description
+	}
+	if course.ImageURL != "" {
+		existingCourse.ImageURL = course.ImageURL
+	}
+	if course.Instructor != "" {
+		existingCourse.Instructor = course.Instructor
+	}
+	if course.Category != "" {
+		existingCourse.Category = course.Category
+	}
+	if course.Duration > 0 {
+		existingCourse.Duration = course.Duration
+	}
+	if course.AvailableSeats > 0 {
+		existingCourse.AvailableSeats = course.AvailableSeats
+	}
+
+	existingCourse.ID = objectID
+	if err := c.service.UpdateCourse(r.Context(), existingCourse); err != nil {
+		views.JSON(w, views.Response{
+			Status: http.StatusInternalServerError,
+			Error:  err.Error(),
+		})
+		return
+	}
+
 	views.JSON(w, views.Response{
 		Status: http.StatusOK,
-		Data:   course,
+		Data:   existingCourse,
 	})
 }
 
@@ -206,30 +248,12 @@ func (c *CourseController) CheckAvailability(w http.ResponseWriter, r *http.Requ
 }
 
 func (c *CourseController) GetUserCourses(w http.ResponseWriter, r *http.Request) {
-	// Get user ID from JWT claims (assuming it's set in the context by middleware)
 	userID := r.Context().Value("userID").(int)
-	if userID == 0 {
-		views.JSON(w, views.Response{
-			Status: http.StatusUnauthorized,
-			Error:  models.ErrUnauthorized.Error(),
-		})
-		return
-	}
 
 	courses, err := c.service.GetUserCourses(r.Context(), userID)
 	if err != nil {
-		status := http.StatusInternalServerError
-		switch err {
-		case models.ErrUnauthorized:
-			status = http.StatusUnauthorized
-		case models.ErrDatabaseOperation:
-			status = http.StatusInternalServerError
-		default:
-			status = http.StatusInternalServerError
-		}
-		
 		views.JSON(w, views.Response{
-			Status: status,
+			Status: http.StatusInternalServerError,
 			Error:  err.Error(),
 		})
 		return
@@ -237,6 +261,8 @@ func (c *CourseController) GetUserCourses(w http.ResponseWriter, r *http.Request
 
 	views.JSON(w, views.Response{
 		Status: http.StatusOK,
-		Data:   courses,
+		Data: map[string]interface{}{
+			"courses": courses,
+		},
 	})
 }

@@ -28,9 +28,12 @@ func main() {
 	
 	// Initialize services
 	courseService := services.NewCourseService(courseRepo, enrollmentRepo, messageQueue)
+	enrollmentService := services.NewEnrollmentService(enrollmentRepo, courseRepo, messageQueue)
 	
 	// Initialize controllers
 	courseController := controllers.NewCourseController(courseService)
+	enrollmentController := controllers.NewEnrollmentController(enrollmentService)
+	serviceController := controllers.NewServiceController()
 
 	// Set up router
 	r := mux.NewRouter()
@@ -46,6 +49,15 @@ func main() {
 	r.HandleFunc("/courses", middlewares.VerifyAdmin(courseController.CreateCourse)).Methods("POST")
 	r.HandleFunc("/courses/{id}", middlewares.VerifyAdmin(courseController.UpdateCourse)).Methods("PUT")
 	r.HandleFunc("/courses/{id}", middlewares.VerifyAdmin(courseController.DeleteCourse)).Methods("DELETE")
+
+	// Enrollment routes
+	r.HandleFunc("/enrollments", middlewares.VerifyToken(enrollmentController.CreateEnrollment)).Methods("POST")
+	r.HandleFunc("/enrollments/check/{courseId}", middlewares.VerifyToken(enrollmentController.CheckEnrollment)).Methods("GET")
+
+	// Service routes
+	r.HandleFunc("/api/services", middlewares.VerifyAdmin(serviceController.GetServices)).Methods("GET")
+	r.HandleFunc("/api/services", middlewares.VerifyAdmin(serviceController.AddInstance)).Methods("POST")
+	r.HandleFunc("/api/services/{id}", middlewares.VerifyAdmin(serviceController.RemoveInstance)).Methods("DELETE")
 
 	log.Println("Server started on port 8002")
 	log.Fatal(http.ListenAndServe(":8002", r))

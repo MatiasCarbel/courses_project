@@ -25,10 +25,6 @@ export default function Course({ params }: { params: { slug: string } }) {
   const { isAdmin } = useUser();
 
   useEffect(() => {
-    setAlreadyEnrolled(course?.is_subscribed ?? false);
-  }, [course]);
-
-  useEffect(() => {
     updateCourses();
   }, []);
 
@@ -41,11 +37,11 @@ export default function Course({ params }: { params: { slug: string } }) {
   }, [course]);
 
   const updateCourses = () => {
-    fetch(`/api/courses/courseId?courseId=${params?.slug}`)
+    fetch(`/api/courses/${params?.slug}`)
       .then((res) => res.json())
       .then((data) => {
-        console.log("data: ", data);
         setCourse(data?.course);
+        setAlreadyEnrolled(data?.course?.is_subscribed ?? false);
         setSrc(data?.course?.image_url ?? "/placeholder.svg");
       });
   };
@@ -55,7 +51,7 @@ export default function Course({ params }: { params: { slug: string } }) {
 
     setIsDeleting(true);
     try {
-      const response = await fetch(`/api/courses/delete/${params?.slug}`, {
+      const response = await fetch(`/api/courses/${params?.slug}`, {
         method: "DELETE",
       });
 
@@ -93,16 +89,27 @@ export default function Course({ params }: { params: { slug: string } }) {
   const handleUpdate = async () => {
     setIsUpdating(true);
     try {
-      const response = await fetch(`/api/courses/update/${params?.slug}`, {
+      if (!course) {
+        throw new Error("Course data not found");
+      }
+
+      const requestBody = {
+        title: updateTitle,
+        description: updateDescription,
+        image_url: updateImage,
+        instructor: course.instructor,
+        category: course.category,
+        duration: course.duration,
+        available_seats: course.available_seats
+      };
+
+      const response = await fetch(`/api/courses/${params?.slug}`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({
-          title: updateTitle,
-          description: updateDescription,
-          image_url: updateImage,
-        }),
+        body: JSON.stringify(requestBody),
+        cache: 'no-store'
       });
 
       const data = await response.json();

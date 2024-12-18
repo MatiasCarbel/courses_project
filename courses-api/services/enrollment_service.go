@@ -3,6 +3,8 @@ package services
 import (
 	"context"
 	"courses-api/models"
+
+	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
 type EnrollmentService struct {
@@ -24,6 +26,15 @@ func NewEnrollmentService(
 }
 
 func (s *EnrollmentService) CreateEnrollment(ctx context.Context, enrollment *models.Enrollment) error {
+	// Check if already enrolled first
+	enrolled, err := s.enrollmentRepo.CheckEnrollment(ctx, enrollment.CourseID, enrollment.UserID)
+	if err != nil {
+		return err
+	}
+	if enrolled {
+		return models.ErrAlreadyEnrolled
+	}
+
 	course, err := s.courseRepo.FindByID(ctx, enrollment.CourseID)
 	if err != nil {
 		if err == models.ErrCourseNotFound {
@@ -36,14 +47,6 @@ func (s *EnrollmentService) CreateEnrollment(ctx context.Context, enrollment *mo
 		return models.ErrNoAvailableSeats
 	}
 
-	enrolled, err := s.enrollmentRepo.CheckEnrollment(ctx, enrollment.CourseID, enrollment.UserID)
-	if err != nil {
-		return err
-	}
-	if enrolled {
-		return models.ErrAlreadyEnrolled
-	}
-
 	if err := s.enrollmentRepo.Create(ctx, enrollment); err != nil {
 		return err
 	}
@@ -54,4 +57,8 @@ func (s *EnrollmentService) CreateEnrollment(ctx context.Context, enrollment *mo
 
 func (s *EnrollmentService) GetUserEnrollments(ctx context.Context, userID int) ([]models.Enrollment, error) {
 	return s.enrollmentRepo.FindByUserID(ctx, userID)
+}
+
+func (s *EnrollmentService) CheckEnrollment(ctx context.Context, courseID primitive.ObjectID, userID int) (bool, error) {
+	return s.enrollmentRepo.CheckEnrollment(ctx, courseID, userID)
 } 

@@ -60,7 +60,7 @@ export async function middleware(request: NextRequest) {
 
   if (
     !isAuthenticated &&
-    [routes.myCourses, routes.course].some(
+    [routes.myCourses, routes.course, routes.adminServices].some(
       (route) => url.pathname === route || courseRouteRegex.test(url.pathname)
     )
   ) {

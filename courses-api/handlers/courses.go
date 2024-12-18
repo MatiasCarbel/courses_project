@@ -777,7 +777,7 @@ func GetUserCourses(client *mongo.Client, w http.ResponseWriter, r *http.Request
 	ctx := context.Background()
 
 	// Find all enrollments for the user
-	cursor, err := enrollmentsCollection.Find(ctx, bson.M{"userid": userID})
+	cursor, err := enrollmentsCollection.Find(ctx, bson.M{"user_id": userID})
 	if err != nil {
 		jsonResponse(w, http.StatusInternalServerError, map[string]string{"error": "Error finding enrollments"})
 		return

@@ -26,14 +26,17 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const url = `${baseUrl}/user/courses/${userId}`;
+    const url = `${baseUrl}/courses/myCourses`;
 
     const coursesReq = await fetch(url, {
       credentials: "include",
       headers: {
         Cookie: cookie,
+        Authorization: `Bearer ${cookieValue}`,
       },
     });
+
+    console.log("coursesReq: ", coursesReq);
 
     if (!coursesReq.ok) {
       return NextResponse.json(
@@ -45,23 +48,16 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const responseText = await coursesReq.text();
-    let coursesJson;
-
-    try {
-      coursesJson = JSON.parse(responseText);
-    } catch (error) {
-      console.error("Error parsing JSON response:", responseText);
-      return NextResponse.json(
-        { message: "Invalid JSON response from server", courses: [] },
-        { status: 500 }
-      );
-    }
-
-    const courses = coursesJson.results || [];
+    const coursesJson = await coursesReq.json();
+    console.log("coursesJson: ", coursesJson);
 
     return NextResponse.json(
-      { message: "Courses fetched", courses },
+      {
+        message: "Courses fetched",
+        data: {
+          courses: coursesJson?.data?.courses ?? [],
+        },
+      },
       { status: 200 }
     );
   } catch (error) {

@@ -61,13 +61,22 @@ func VerifyAdmin(next http.HandlerFunc) http.HandlerFunc {
 
 func VerifyToken(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		var tokenString string
+
+		// First check Authorization header
 		authHeader := r.Header.Get("Authorization")
-		if authHeader == "" {
-			http.Error(w, models.ErrUnauthorized.Error(), http.StatusUnauthorized)
-			return
+		if strings.HasPrefix(authHeader, "Bearer ") {
+			tokenString = strings.TrimPrefix(authHeader, "Bearer ")
+		} else {
+			// If no Authorization header, check cookie
+			cookie, err := r.Cookie("token")
+			if err != nil {
+				http.Error(w, models.ErrUnauthorized.Error(), http.StatusUnauthorized)
+				return
+			}
+			tokenString = cookie.Value
 		}
 
-		tokenString := strings.Replace(authHeader, "Bearer ", "", 1)
 		claims := &Claims{}
 		token, err := jwt.ParseWithClaims(tokenString, claims, func(token *jwt.Token) (interface{}, error) {
 			return jwtSecret, nil
@@ -78,6 +87,7 @@ func VerifyToken(next http.HandlerFunc) http.HandlerFunc {
 			return
 		}
 
+		// Add claims to context
 		ctx := context.WithValue(r.Context(), "userID", claims.UserID)
 		next.ServeHTTP(w, r.WithContext(ctx))
 	}
