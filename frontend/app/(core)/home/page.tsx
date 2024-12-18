@@ -35,7 +35,7 @@ export default function Component() {
           body: JSON.stringify(courseIds)
         })
 
-        const availData = await availRes.json()
+        const { data: availData } = await availRes.json()
 
         // Merge availability data with courses
         const coursesWithAvailability = data.courses.map((course: CourseType) => ({

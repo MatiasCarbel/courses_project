@@ -57,6 +57,7 @@ export const useUser = () => {
       await fetch("/api/auth/logout");
       setUser(null);
       setIsAdmin(false);
+      window.location.href = "/login";
     } catch (error) {
       console.error("Error during logout:", error);
     }

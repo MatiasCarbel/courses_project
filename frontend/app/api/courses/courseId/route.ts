@@ -2,10 +2,10 @@ import { formatCookies } from "@/lib/api.utils";
 import { NextRequest, NextResponse } from "next/server";
 
 export async function GET(request: NextRequest) {
+  console.log("fetching course details");
   const coursesApiUrl =
     process.env.NEXT_PUBLIC_COURSES_API_URL ?? "http://courses-api:8002";
 
-  // Get courseId from query params
   const courseId = request.nextUrl.searchParams.get("courseId");
 
   try {
@@ -17,6 +17,7 @@ export async function GET(request: NextRequest) {
     });
 
     const course = await searchResponse.json();
+    console.log("course: ", course);
 
     if (!course) {
       return NextResponse.json(
@@ -25,15 +26,45 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    console.log("fetching enrollment data");
+
     const cookie = formatCookies();
+    if (!cookie) {
+      return NextResponse.json(
+        {
+          message: "Course details fetched",
+          course: {
+            ...course,
+            is_subscribed: false,
+          },
+        },
+        { status: 200 }
+      );
+    }
+
     const enrollmentResponse = await fetch(
       `${coursesApiUrl}/enrollments/check/${courseId}`,
       {
         headers: {
-          cookie: cookie,
+          Authorization: `Bearer ${cookie.split("=")[1]}`,
+          Accept: "application/json",
         },
       }
     );
+
+    if (!enrollmentResponse.ok) {
+      console.error("Enrollment check failed:", enrollmentResponse.status);
+      return NextResponse.json(
+        {
+          message: "Course details fetched",
+          course: {
+            ...course,
+            is_subscribed: false,
+          },
+        },
+        { status: 200 }
+      );
+    }
 
     const enrollmentData = await enrollmentResponse.json();
     console.log("enrollmentData: ", enrollmentData);
@@ -43,8 +74,7 @@ export async function GET(request: NextRequest) {
         message: "Course details fetched",
         course: {
           ...course,
-          is_subscribed:
-            enrollmentData?.message === "User is enrolled in this course",
+          is_subscribed: enrollmentData?.data?.enrolled ?? false,
         },
       },
       { status: 200 }

@@ -5,7 +5,7 @@ const routes = {
   home: "/home",
   myCourses: "/myCourses",
   course: "/course/:id",
-  admin: "/admin/services",
+  adminServices: "/admin/services",
 };
 
 export default routes;

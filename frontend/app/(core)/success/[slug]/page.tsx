@@ -7,20 +7,15 @@ import { useEffect, useState } from "react";
 export default function Component({ params }: { params: { slug: string } }) {
   const [course, setCourse] = useState<CourseType>()
   const [src, setSrc] = useState<string>("/placeholder.svg")
-  const [alreadyEnrrolled, setAlreadyEnrolled] = useState(false)
-
-  useEffect(() => {
-    setAlreadyEnrolled(course?.is_subscribed ?? false)
-  }, [course]);
 
   useEffect(() => {
     fetch(`/api/courses/courseId?courseId=${params?.slug}`)
       .then((res) => res.json())
       .then((data) => {
-        setCourse(data?.course)
-        setSrc(data?.course?.image_url ?? "/placeholder.svg")
+        setCourse(data?.course?.data);
+        setSrc(data?.course?.data?.image_url ?? "/placeholder.svg");
       })
-  }, [])
+  }, [params?.slug])
 
   return (
     <div className="flex flex-col">
